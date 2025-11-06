@@ -259,7 +259,7 @@ namespace jrabbit {
     }
 
   private:
-    std::string mName{""};
+    std::string mName{};
     bool mPassive{};
     bool mDurable{};
     bool mExclusive{};
@@ -408,7 +408,7 @@ namespace jrabbit {
     return {};
   }
 
-  class RabbitMq;
+  struct RabbitMq;
 
   struct Channel {
     friend struct RabbitMq;
@@ -552,7 +552,7 @@ namespace jrabbit {
         // ... this code could be reduced, but there is a exception that might be treated when 'frame.payload.method.id == AMQP_BASIC_RETURN_METHOD'
         if (AMQP_RESPONSE_NORMAL == ret.reply_type) {
           auto msg = Envelope{{static_cast<char *>(envelope.message.body.bytes), envelope.message.body.len}}
-              .delivery_tag((unsigned) envelope.delivery_tag)
+              .delivery_tag(envelope.delivery_tag)
               .consumer_tag({static_cast<char *>(envelope.consumer_tag.bytes), envelope.consumer_tag.len})
               .redelivered(envelope.redelivered)
               .exchange({static_cast<char *>(envelope.exchange.bytes), envelope.exchange.len})
