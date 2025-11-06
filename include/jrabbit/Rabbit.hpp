@@ -43,16 +43,6 @@ namespace jrabbit {
       return mTimeout;
     }
 
-    Context &channel(int value) {
-      mChannel = value;
-
-      return *this;
-    }
-
-    [[nodiscard]] int channel() const {
-      return mChannel;
-    }
-
     Context &user(std::string const &value) {
       mUser = value;
 
@@ -104,7 +94,6 @@ namespace jrabbit {
     std::string mPass{"guest"};
     std::string mVirtualHost{"/"};
     std::chrono::milliseconds mTimeout{1000};
-    int mChannel{1u};
     int mPort{5672};
     int mFrame{4096};
   };
@@ -391,46 +380,42 @@ namespace jrabbit {
     bool mMandatory{};
   };
 
-  struct RabbitMq {
-    [[nodiscard]] static std::expected<RabbitMq, std::string> connect(Context const &context) {
-      try {
-        return RabbitMq{context};
-      } catch (const std::exception &e) {
-        return std::unexpected{e.what()};
-      }
+  static std::optional<std::string> amqp_error(amqp_rpc_reply_t x) {
+    if (x.reply_type == AMQP_RESPONSE_NONE) {
+      return "missing rpc reply type";
     }
 
-    RabbitMq(RabbitMq const &) = delete;
-
-    RabbitMq(RabbitMq &&other) noexcept
-      : mContext{std::move(other.mContext)}, mConnection{other.mConnection}, mSocket{other.mSocket} {
-      other.mConnection = nullptr;
-      other.mSocket = nullptr;
+    if (x.reply_type == AMQP_RESPONSE_LIBRARY_EXCEPTION) {
+      return amqp_error_string2(x.library_error);
     }
 
-    ~RabbitMq() {
-      release();
-    }
-
-    RabbitMq &operator=(RabbitMq const &) = delete;
-
-    RabbitMq &operator=(RabbitMq &&) = delete;
-
-    void release() const {
-      if (!mConnection or !mSocket) {
-        return;
+    if (x.reply_type == AMQP_RESPONSE_SERVER_EXCEPTION) {
+      if (x.reply.id == AMQP_CONNECTION_CLOSE_METHOD) {
+        auto *context = static_cast<amqp_connection_close_t *>(x.reply.decoded);
+        auto sv = std::string_view{static_cast<char *>(context->reply_text.bytes), context->reply_text.len};
+        return std::format("server connection error {}, message: {}\n", context->reply_code, sv);
       }
 
-      if (auto result = amqp_error(amqp_channel_close(mConnection, mContext.channel(), AMQP_REPLY_SUCCESS)); result) {
+      if (x.reply.id == AMQP_CHANNEL_CLOSE_METHOD) {
+        auto *context = static_cast<amqp_channel_close_t *>(x.reply.decoded);
+        auto sv = std::string_view{static_cast<char *>(context->reply_text.bytes), context->reply_text.len};
+        return std::format("server channel error {}, message: {}\n", context->reply_code, sv);
+      }
+
+      return std::format("unknown server error, method id {}", x.reply.id);
+    }
+
+    return {};
+  }
+
+  class RabbitMq;
+
+  struct Channel {
+    friend struct RabbitMq;
+
+    ~Channel() {
+      if (auto result = amqp_error(amqp_channel_close(mState, mChannel, AMQP_REPLY_SUCCESS)); result) {
         std::cerr << result.value() << std::endl;
-      }
-
-      if (auto result = amqp_error(amqp_connection_close(mConnection, AMQP_REPLY_SUCCESS)); result) {
-        std::cerr << result.value() << std::endl;
-      }
-
-      if (auto result = amqp_destroy_connection(mConnection); result != AMQP_STATUS_OK) {
-        std::cerr << amqp_error_string2(result) << std::endl;
       }
     }
 
@@ -443,20 +428,20 @@ namespace jrabbit {
         exchangeType = "topic";
       }
 
-      amqp_exchange_declare(mConnection, mContext.channel(), amqp_cstring_bytes(exchange.name().c_str()),
+      amqp_exchange_declare(mState, mChannel, amqp_cstring_bytes(exchange.name().c_str()),
                             amqp_cstring_bytes(exchangeType.c_str()), exchange.passive() ? 1 : 0,
                             exchange.durable() ? 1 : 0, exchange.auto_delete() ? 1 : 0, exchange.internal() ? 1 : 0,
                             amqp_empty_table);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
     void delete_exchange(Exchange const &exchange, bool ifUnused = false) const {
-      amqp_exchange_delete(mConnection, mContext.channel(), amqp_cstring_bytes(exchange.name().c_str()), ifUnused);
+      amqp_exchange_delete(mState, mChannel, amqp_cstring_bytes(exchange.name().c_str()), ifUnused);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
@@ -467,63 +452,63 @@ namespace jrabbit {
         .entries = nullptr
       };
 
-      amqp_queue_declare(mConnection, mContext.channel(), amqp_cstring_bytes(queue.name().c_str()),
+      amqp_queue_declare(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                          queue.passive() ? 1 : 0,
                          queue.durable() ? 1 : 0, queue.exclusive() ? 1 : 0, queue.auto_delete() ? 1 : 0, args);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
 
-      // amqp_release_buffers(mConnection);
+      // amqp_release_buffers(mState);
     }
 
     void delete_queue(Queue const &queue, bool ifUnused = false, bool ifEmpty = false) const {
-      amqp_queue_delete(mConnection, mContext.channel(), amqp_cstring_bytes(queue.name().c_str()), ifUnused ? 1 : 0,
+      amqp_queue_delete(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()), ifUnused ? 1 : 0,
                         ifEmpty ? 1 : 0);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
     void purge_queue(Queue const &queue) const {
-      amqp_queue_purge(mConnection, mContext.channel(), amqp_cstring_bytes(queue.name().c_str()));
+      amqp_queue_purge(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()));
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
     void bind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}) const {
-      amqp_queue_bind(mConnection, mContext.channel(), amqp_cstring_bytes(queue.name().c_str()),
+      amqp_queue_bind(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                       amqp_cstring_bytes(exchange.name().c_str()), amqp_cstring_bytes(routingKey.name().c_str()),
                       amqp_empty_table);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
     void unbind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}) const {
-      amqp_queue_unbind(mConnection, mContext.channel(), amqp_cstring_bytes(queue.name().c_str()),
+      amqp_queue_unbind(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                         amqp_cstring_bytes(exchange.name().c_str()), amqp_cstring_bytes(routingKey.name().c_str()),
                         amqp_empty_table);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
     void publish(Exchange const &exchange, Message const &message, RoutingKey const &routingKey = {}) const {
-      if (auto result = amqp_basic_publish(mConnection, 1, amqp_cstring_bytes(exchange.name().c_str()),
+      if (auto result = amqp_basic_publish(mState, 1, amqp_cstring_bytes(exchange.name().c_str()),
                                            amqp_cstring_bytes(routingKey.name().c_str()), message.mandatory(),
                                            message.immediate(), nullptr,
                                            amqp_cstring_bytes(message.data().c_str())); result != AMQP_STATUS_OK) {
         throw std::runtime_error{amqp_error_string2(result)};
       }
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
 
@@ -536,17 +521,17 @@ namespace jrabbit {
         - connection.clsoe - something really bad happened
        */
 
-      amqp_maybe_release_buffers_on_channel(mConnection, mContext.channel());
+      amqp_maybe_release_buffers_on_channel(mState, mChannel);
     }
 
     [[nodiscard]] std::generator<Envelope> consume(Queue const &queue, RoutingKey const &routingKey = {},
                                                    std::chrono::milliseconds timeout = {}, bool noLocal = {},
                                                    bool noAck = {true}, bool exclusive = {}) const {
-      amqp_basic_consume(mConnection, mContext.channel(), amqp_cstring_bytes(queue.name().c_str()),
+      amqp_basic_consume(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                          amqp_cstring_bytes(routingKey.name().c_str()), noLocal ? 1 : 0, noAck ? 1 : 0,
                          exclusive ? 1 : 0, amqp_empty_table);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
 
@@ -560,18 +545,18 @@ namespace jrabbit {
         amqp_envelope_t envelope;
         amqp_rpc_reply_t ret;
 
-        amqp_maybe_release_buffers_on_channel(mConnection, mContext.channel());
+        amqp_maybe_release_buffers_on_channel(mState, mChannel);
 
-        ret = amqp_consume_message(mConnection, &envelope, (timeout.count() > 0) ? &tval : nullptr, 0);
+        ret = amqp_consume_message(mState, &envelope, (timeout.count() > 0) ? &tval : nullptr, 0);
 
         // ... this code could be reduced, but there is a exception that might be treated when 'frame.payload.method.id == AMQP_BASIC_RETURN_METHOD'
         if (AMQP_RESPONSE_NORMAL == ret.reply_type) {
           auto msg = Envelope{{static_cast<char *>(envelope.message.body.bytes), envelope.message.body.len}}
-          .delivery_tag((unsigned) envelope.delivery_tag)
-          .consumer_tag({static_cast<char *>(envelope.consumer_tag.bytes), envelope.consumer_tag.len})
-          .redelivered(envelope.redelivered)
-          .exchange({static_cast<char *>(envelope.exchange.bytes), envelope.exchange.len})
-          .routing_key({static_cast<char *>(envelope.routing_key.bytes), envelope.routing_key.len});
+              .delivery_tag((unsigned) envelope.delivery_tag)
+              .consumer_tag({static_cast<char *>(envelope.consumer_tag.bytes), envelope.consumer_tag.len})
+              .redelivered(envelope.redelivered)
+              .exchange({static_cast<char *>(envelope.exchange.bytes), envelope.exchange.len})
+              .routing_key({static_cast<char *>(envelope.routing_key.bytes), envelope.routing_key.len});
 
           amqp_destroy_envelope(&envelope);
 
@@ -605,7 +590,7 @@ namespace jrabbit {
             throw std::runtime_error{amqp_error_string2(ret.library_error)};
           }
 
-          if (AMQP_STATUS_OK != amqp_simple_wait_frame(mConnection, &frame)) {
+          if (AMQP_STATUS_OK != amqp_simple_wait_frame(mState, &frame)) {
             co_return;
           }
 
@@ -617,7 +602,7 @@ namespace jrabbit {
               // returned. The message then needs to be read.
               amqp_message_t message;
 
-              if (auto result = amqp_error(amqp_read_message(mConnection, frame.channel, &message, 0)); result) {
+              if (auto result = amqp_error(amqp_read_message(mState, frame.channel, &message, 0)); result) {
                 throw std::runtime_error(result.value());
               }
 
@@ -645,69 +630,131 @@ namespace jrabbit {
     }
 
     void ack(Envelope const &envelope, bool multiple = {}) const {
-      amqp_basic_ack(mConnection, mContext.channel(), envelope.delivery_tag(), multiple ? 1 : 0);
+      amqp_basic_ack(mState, mChannel, envelope.delivery_tag(), multiple ? 1 : 0);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
     void nack(Envelope const &envelope, bool requeue = {}, bool multiple = {}) const {
-      amqp_basic_nack(mConnection, mContext.channel(), envelope.delivery_tag(), multiple ? 1 : 0, requeue ? 1 : 0);
+      amqp_basic_nack(mState, mChannel, envelope.delivery_tag(), multiple ? 1 : 0, requeue ? 1 : 0);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
     void reject(Envelope const &envelope, bool requeue = {}) const {
-      amqp_basic_reject(mConnection, mContext.channel(), envelope.delivery_tag(), requeue ? 1 : 0);
+      amqp_basic_reject(mState, mChannel, envelope.delivery_tag(), requeue ? 1 : 0);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
     void recover(bool requeue = {}) const {
-      amqp_basic_recover(mConnection, mContext.channel(), requeue ? 1 : 0);
+      amqp_basic_recover(mState, mChannel, requeue ? 1 : 0);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
 
-      amqp_maybe_release_buffers_on_channel(mConnection, mContext.channel());
+      amqp_maybe_release_buffers_on_channel(mState, mChannel);
     }
 
     void qos(const std::string &consumer_tag, uint32_t prefetchSize, uint16_t prefetchCount = {1},
              bool global = {}) const {
-      amqp_basic_qos(mConnection, mContext.channel(), prefetchSize, prefetchCount, global ? 1 : 0);
+      amqp_basic_qos(mState, mChannel, prefetchSize, prefetchCount, global ? 1 : 0);
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
 
-      amqp_maybe_release_buffers_on_channel(mConnection, mContext.channel());
+      amqp_maybe_release_buffers_on_channel(mState, mChannel);
     }
 
     void cancel(const std::string &consumerTag) const {
-      amqp_basic_cancel(mConnection, mContext.channel(), amqp_cstring_bytes(consumerTag.c_str()));
+      amqp_basic_cancel(mState, mChannel, amqp_cstring_bytes(consumerTag.c_str()));
 
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
 
-      amqp_maybe_release_buffers_on_channel(mConnection, mContext.channel());
+      amqp_maybe_release_buffers_on_channel(mState, mChannel);
+    }
+
+  private:
+    Context &mContext;
+    amqp_connection_state_t mState{};
+    int mChannel{-1};
+
+    Channel(Context &context, amqp_connection_state_t state, int channelId)
+      : mContext{context}, mState{state}, mChannel{channelId} {
+      auto channel = amqp_channel_open(mState, 1);
+
+      if (channel == nullptr) {
+        throw std::runtime_error{"unable to open/create a channel"};
+      }
+
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
+        throw std::runtime_error{result.value()};
+      }
+    }
+  };
+
+  struct RabbitMq {
+    [[nodiscard]] static std::expected<RabbitMq, std::string> connect(jrabbit::Context const &context) {
+      try {
+        return RabbitMq{context};
+      } catch (const std::exception &e) {
+        return std::unexpected{e.what()};
+      }
+    }
+
+    RabbitMq(RabbitMq const &) = delete;
+
+    RabbitMq(RabbitMq &&other) noexcept
+      : mContext{std::move(other.mContext)}, mState{other.mState}, mSocket{other.mSocket} {
+      other.mState = nullptr;
+      other.mSocket = nullptr;
+    }
+
+    ~RabbitMq() {
+      release();
+    }
+
+    RabbitMq &operator=(RabbitMq const &) = delete;
+
+    RabbitMq &operator=(RabbitMq &&) = delete;
+
+    std::unique_ptr<Channel> open(int channel) {
+      return std::unique_ptr<Channel>(new Channel{mContext, mState, channel});
+    }
+
+    void release() const {
+      if (!mState or !mSocket) {
+        return;
+      }
+
+      if (auto result = amqp_error(amqp_connection_close(mState, AMQP_REPLY_SUCCESS)); result) {
+        std::cerr << result.value() << std::endl;
+      }
+
+      if (auto result = amqp_destroy_connection(mState); result != AMQP_STATUS_OK) {
+        std::cerr << amqp_error_string2(result) << std::endl;
+      }
     }
 
   private:
     Context mContext;
-    amqp_connection_state_t mConnection{};
+    amqp_connection_state_t mState{};
     amqp_socket_t *mSocket{nullptr};
 
     explicit RabbitMq(Context context)
       : mContext(std::move(context)) {
-      mConnection = amqp_new_connection();
-      mSocket = amqp_tcp_socket_new(mConnection);
+      mState = amqp_new_connection();
+      mSocket = amqp_tcp_socket_new(mState);
 
       if (!mSocket) {
         throw std::runtime_error{"unable to connect to host"};
@@ -728,50 +775,11 @@ namespace jrabbit {
         }
       }
 
-      if (auto result = amqp_error(amqp_login(mConnection, mContext.virtual_host().c_str(), 0, mContext.frame(), 0, AMQP_SASL_METHOD_PLAIN,
-                                              mContext.user().c_str(),
+      if (auto result = amqp_error(amqp_login(mState, mContext.virtual_host().c_str(), 0, mContext.frame(), 0,
+                                              AMQP_SASL_METHOD_PLAIN, mContext.user().c_str(),
                                               mContext.pass().c_str())); result) {
         throw std::runtime_error{result.value()};
       }
-
-      auto channel = amqp_channel_open(mConnection, 1);
-
-      if (channel == nullptr) {
-        throw std::runtime_error{"unable to open/create a channel"};
-      }
-
-      if (auto result = amqp_error(amqp_get_rpc_reply(mConnection)); result) {
-        throw std::runtime_error{result.value()};
-      }
-    }
-
-    static std::optional<std::string> amqp_error(amqp_rpc_reply_t x) {
-      if (x.reply_type == AMQP_RESPONSE_NONE) {
-        return "missing rpc reply type";
-      }
-
-      if (x.reply_type == AMQP_RESPONSE_LIBRARY_EXCEPTION) {
-        return amqp_error_string2(x.library_error);
-      }
-
-      if (x.reply_type == AMQP_RESPONSE_SERVER_EXCEPTION) {
-        if (x.reply.id == AMQP_CONNECTION_CLOSE_METHOD) {
-          auto *context = static_cast<amqp_connection_close_t *>(x.reply.decoded);
-          auto sv = std::string_view{static_cast<char *>(context->reply_text.bytes), context->reply_text.len};
-          return std::format("server connection error {}, message: {}\n", context->reply_code, sv);
-        }
-
-        if (x.reply.id == AMQP_CHANNEL_CLOSE_METHOD) {
-          auto *context = static_cast<amqp_channel_close_t *>(x.reply.decoded);
-          auto sv = std::string_view{static_cast<char *>(context->reply_text.bytes), context->reply_text.len};
-          return std::format("server channel error {}, message: {}\n", context->reply_code, sv);
-        }
-
-        return std::format("unknown server error, method id {}", x.reply.id);
-      }
-
-      return {};
     }
   };
 }
-
