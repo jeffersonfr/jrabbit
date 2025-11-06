@@ -25,7 +25,7 @@ target_include_directories(${PROJECT_NAME}_core
             ${PROJECT_SOURCE_DIR}/include
 )
 
-add_library(jrabbit::core ALIAS ${PROJECT_NAME}_core)
+add_library(${PROJECT_NAME}::core ALIAS ${PROJECT_NAME}_core)
 
 add_subdirectory(thirdparty)
 add_subdirectory(tests)

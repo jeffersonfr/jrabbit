@@ -33,12 +33,13 @@ if (expected_POPULATED)
 endif ()
 
 # create a target to use in src/
-add_library(thirdparty INTERFACE)
+add_library(${PROJECT_NAME}_thirdparty INTERFACE)
 
-target_link_libraries(thirdparty
+target_link_libraries(${PROJECT_NAME}_thirdparty
         INTERFACE
                 fmt
                 rabbitmq-static
                 expected
 )
 
+add_library(${PROJECT_NAME}::thirdparty ALIAS ${PROJECT_NAME}_thirdparty)

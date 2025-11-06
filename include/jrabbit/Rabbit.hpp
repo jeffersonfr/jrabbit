@@ -73,13 +73,40 @@ namespace jrabbit {
       return mPass;
     }
 
+    Context &virtual_host(std::string const &value) {
+      mVirtualHost = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] std::string const &virtual_host() const {
+      return mVirtualHost;
+    }
+
+    Context &frame(int value) {
+      mFrame = value;
+
+      // [4096 .. 2 ^ 31 - 1]
+      if (mFrame < 4096 or mFrame > 131072) {
+        throw std::runtime_error{"invalid frame size range"};
+      }
+
+      return *this;
+    }
+
+    [[nodiscard]] int frame() const {
+      return mFrame;
+    }
+
   private:
     std::string mHost{"localhost"};
     std::string mUser{"guest"};
     std::string mPass{"guest"};
+    std::string mVirtualHost{"/"};
     std::chrono::milliseconds mTimeout{1000};
     int mChannel{1u};
     int mPort{5672};
+    int mFrame{4096};
   };
 
   struct Exchange {
@@ -394,7 +421,7 @@ namespace jrabbit {
         return;
       }
 
-      if (auto result = amqp_error(amqp_channel_close(mConnection, 1, AMQP_REPLY_SUCCESS)); result) {
+      if (auto result = amqp_error(amqp_channel_close(mConnection, mContext.channel(), AMQP_REPLY_SUCCESS)); result) {
         std::cerr << result.value() << std::endl;
       }
 
@@ -533,7 +560,7 @@ namespace jrabbit {
         amqp_envelope_t envelope;
         amqp_rpc_reply_t ret;
 
-        amqp_maybe_release_buffers(mConnection);
+        amqp_maybe_release_buffers_on_channel(mConnection, mContext.channel());
 
         ret = amqp_consume_message(mConnection, &envelope, (timeout.count() > 0) ? &tval : nullptr, 0);
 
@@ -701,7 +728,7 @@ namespace jrabbit {
         }
       }
 
-      if (auto result = amqp_error(amqp_login(mConnection, "/", 0, 131072, 0, AMQP_SASL_METHOD_PLAIN,
+      if (auto result = amqp_error(amqp_login(mConnection, mContext.virtual_host().c_str(), 0, mContext.frame(), 0, AMQP_SASL_METHOD_PLAIN,
                                               mContext.user().c_str(),
                                               mContext.pass().c_str())); result) {
         throw std::runtime_error{result.value()};
