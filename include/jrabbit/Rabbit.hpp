@@ -721,7 +721,17 @@ namespace jrabbit {
     }
 
     ~RabbitMq() {
-      release();
+      if (mState != nullptr) {
+        if (auto result = amqp_error(amqp_connection_close(mState, AMQP_REPLY_SUCCESS)); result) {
+          std::cerr << result.value() << std::endl;
+        }
+      }
+
+      if (mSocket != nullptr) {
+        if (auto result = amqp_destroy_connection(mState); result != AMQP_STATUS_OK) {
+          std::cerr << amqp_error_string2(result) << std::endl;
+        }
+      }
     }
 
     RabbitMq &operator=(RabbitMq const &) = delete;
@@ -732,23 +742,9 @@ namespace jrabbit {
       return std::unique_ptr<Channel>(new Channel{mContext, mState, channel});
     }
 
-    void release() const {
-      if (!mState or !mSocket) {
-        return;
-      }
-
-      if (auto result = amqp_error(amqp_connection_close(mState, AMQP_REPLY_SUCCESS)); result) {
-        std::cerr << result.value() << std::endl;
-      }
-
-      if (auto result = amqp_destroy_connection(mState); result != AMQP_STATUS_OK) {
-        std::cerr << amqp_error_string2(result) << std::endl;
-      }
-    }
-
   private:
     Context mContext;
-    amqp_connection_state_t mState{};
+    amqp_connection_state_t mState{nullptr};
     amqp_socket_t *mSocket{nullptr};
 
     explicit RabbitMq(Context context)
@@ -757,6 +753,8 @@ namespace jrabbit {
       mSocket = amqp_tcp_socket_new(mState);
 
       if (!mSocket) {
+        amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
+
         throw std::runtime_error{"unable to connect to host"};
       }
 
@@ -767,10 +765,16 @@ namespace jrabbit {
         };
 
         if (amqp_socket_open_noblock(mSocket, mContext.host().c_str(), mContext.port(), &tval) != AMQP_STATUS_OK) {
+          amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
+          amqp_destroy_connection(mState);
+
           throw std::runtime_error{"unable to create socket connection"};
         }
       } else {
         if (amqp_socket_open(mSocket, mContext.host().c_str(), mContext.port()) != AMQP_STATUS_OK) {
+          amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
+          amqp_destroy_connection(mState);
+
           throw std::runtime_error{"unable to create socket connection"};
         }
       }
@@ -778,6 +782,9 @@ namespace jrabbit {
       if (auto result = amqp_error(amqp_login(mState, mContext.virtual_host().c_str(), 0, mContext.frame(), 0,
                                               AMQP_SASL_METHOD_PLAIN, mContext.user().c_str(),
                                               mContext.pass().c_str())); result) {
+        amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
+        amqp_destroy_connection(mState);
+
         throw std::runtime_error{result.value()};
       }
     }
