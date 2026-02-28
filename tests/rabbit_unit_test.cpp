@@ -25,44 +25,49 @@ struct jRabbitSuite : public ::testing::Test {
 	}
 };
 
+const std::string RabbitServer = "rabbit.jsys.zapto.org";
+const int RabbitPort = 5672;
+
 TEST_F(jRabbitSuite, ProceduralTest) {
-	auto context = jrabbit::Context{}.host("rabbit.jsys.zapto.org").port(5672).timeout(std::chrono::seconds{1});
+	auto context = jrabbit::Context{}.host(RabbitServer).port(RabbitPort).timeout(std::chrono::seconds{1});
 	auto state = jrabbit::RabbitMq::connect(context);
 
-	if (state) {
-		auto channel = state->open(1);
-
-		auto ex = jrabbit::Exchange{"exchange1"}.type(jrabbit::Exchange::Type::FANOUT);
-		auto q1 = jrabbit::Queue{"queue1"};
-		auto rk = jrabbit::RoutingKey{};
-
-		// -- creating objects
-		channel->declare_exchange(ex);
-		channel->declare_queue(q1);
-
-		// -- binding objects
-		channel->bind(ex, q1);
-
-		// -- send messsage
-		channel->publish(ex, jrabbit::Message{"testando mensagem 1 ..."});
-
-		for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1})) {
-			std::cout << "MSG: " << e.data() << std::endl;
-
-			break;
-		}
-
-		// -- unbinding objects
-		channel->unbind(ex, q1);
-
-		// -- delete objects
-		channel->delete_queue(q1);
-		channel->delete_exchange(ex);
+	if (!state) {
+		FAIL();
 	}
+
+	auto channel = state->open(1);
+
+	auto ex = jrabbit::Exchange{"exchange1"}.type(jrabbit::Exchange::Type::FANOUT);
+	auto q1 = jrabbit::Queue{"queue1"};
+	auto rk = jrabbit::RoutingKey{};
+
+	// -- creating objects
+	channel->declare_exchange(ex);
+	channel->declare_queue(q1);
+
+	// -- binding objects
+	channel->bind(ex, q1);
+
+	// -- send messsage
+	channel->publish(ex, jrabbit::Message{"testando mensagem 1 ..."});
+
+	for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1})) {
+		std::cout << "MSG: " << e.data() << std::endl;
+
+		break;
+	}
+
+	// -- unbinding objects
+	channel->unbind(ex, q1);
+
+	// -- delete objects
+	channel->delete_queue(q1);
+	channel->delete_exchange(ex);
 }
 
 TEST_F(jRabbitSuite, MonadTest) {
-	jrabbit::RabbitMq::connect(jrabbit::Context{}.host("rabbit.jsys.zapto.org").port(5672).timeout(std::chrono::seconds{1}))
+	auto result = jrabbit::RabbitMq::connect(jrabbit::Context{}.host(RabbitServer).port(RabbitPort).timeout(std::chrono::seconds{1}))
 		.and_then([](jrabbit::RabbitMq mq) -> std::expected<jrabbit::RabbitMq, std::string> {
 				auto ex = jrabbit::Exchange{"exchange1"}.type(jrabbit::Exchange::Type::FANOUT);
 				auto q1 = jrabbit::Queue{"queue1"};
@@ -110,6 +115,56 @@ TEST_F(jRabbitSuite, MonadTest) {
 
 				return std::move(mq);
 		});
+
+	if (!result) {
+		FAIL();
+	}
+}
+
+TEST_F(jRabbitSuite, StreamTest) {
+	auto context = jrabbit::Context{}.host(RabbitServer).port(RabbitPort).timeout(std::chrono::seconds{1});
+	auto state = jrabbit::RabbitMq::connect(context);
+
+	if (!state) {
+		FAIL();
+	}
+
+	auto params = jrabbit::Params{}
+		.put_text("x-queue-type", "stream");
+
+	auto channel = state->open(1);
+
+	auto ex = jrabbit::Exchange{"exchange1"}.type(jrabbit::Exchange::Type::FANOUT);
+	auto q1 = jrabbit::Queue{"queue1"};
+	auto rk = jrabbit::RoutingKey{};
+
+	// -- creating objects
+	channel->declare_exchange(ex);
+	channel->declare_queue(q1, params);
+
+	// -- binding objects
+	channel->bind(ex, q1);
+
+	// -- send messsage
+	auto offset = jrabbit::Params{}
+		.put_int32("x-stream-offset", 1);
+
+	channel->publish(ex, jrabbit::Message{"testando mensagem 1 ..."});
+	channel->publish(ex, jrabbit::Message{"testando mensagem 2 ..."});
+	channel->publish(ex, jrabbit::Message{"testando mensagem 3 ..."});
+
+	for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1}, false, false, false, offset)) {
+		std::cout << "MSG: " << e.data() << std::endl;
+
+		break;
+	}
+
+	// -- unbinding objects
+	channel->unbind(ex, q1);
+
+	// -- delete objects
+	channel->delete_queue(q1);
+	channel->delete_exchange(ex);
 }
 
 int main(int argc, char *argv[]) {

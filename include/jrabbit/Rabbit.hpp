@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdio>
 #include <expected>
+#include <functional>
 #include <iostream>
 #include <generator>
 
@@ -96,6 +97,229 @@ namespace jrabbit {
     std::chrono::milliseconds mTimeout{1000};
     int mPort{5672};
     int mFrame{4096};
+  };
+
+  struct Params {
+    friend class Channel;
+
+    Params() = default;
+
+    Params & put_void(char const *key) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_VOID;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_bool(char const *key, bool value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_BOOLEAN;
+      entry.value.value.boolean = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_int16(char const *key, int16_t value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_I16;
+      entry.value.value.i16 = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_int32(char const *key, int32_t value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_I32;
+      entry.value.value.i32 = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_int64(char const *key, int64_t value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_I64;
+      entry.value.value.i64 = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_uint8(char const *key, uint8_t value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_U8;
+      entry.value.value.u8 = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_uint16(char const *key, uint16_t value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_U16;
+      entry.value.value.u16 = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_uint32(char const *key, uint32_t value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_U32;
+      entry.value.value.u32 = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_uint64(char const *key, uint64_t value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_U64;
+      entry.value.value.u64 = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_float32(char const *key, float value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_F32;
+      entry.value.value.f32 = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_float64(char const *key, double value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_F64;
+      entry.value.value.f64 = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_text(char const *key, char const *value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_UTF8;
+      entry.value.value.bytes = amqp_cstring_bytes(value);
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_bytes(char const *key, char const *value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_cstring_bytes(key);
+      entry.value.kind = AMQP_FIELD_KIND_BYTES;
+      entry.value.value.bytes = amqp_cstring_bytes(value);
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    [[nodiscard]] amqp_table_t get_params() const {
+      if (mParams.empty()) {
+        return amqp_empty_table;
+      }
+
+      amqp_table_t table;
+
+      table.entries = const_cast<::amqp_table_entry_t *>(mParams.data()),
+      table.num_entries = static_cast<int>(mParams.size());
+
+      return table;
+    }
+
+  private:
+    std::vector<::amqp_table_entry_t> mParams;
+  };
+
+  struct Properties {
+    enum class DeliveryMode {
+      Persistent,
+      NonPersistent
+    };
+
+    Properties()
+      : mProperties{} {}
+
+    Properties &content_type(std::string const &value) {
+      mProperties._flags = AMQP_BASIC_CONTENT_TYPE_FLAG;
+      mProperties.content_type = amqp_cstring_bytes(strdup("text/plain"));
+
+      return *this;
+    }
+
+    Properties &delivery_mode(DeliveryMode mode) {
+      mProperties._flags = AMQP_BASIC_DELIVERY_MODE_FLAG;
+
+      if (mode == DeliveryMode::Persistent) {
+        mProperties.delivery_mode = 1;
+      } else {
+        mProperties.delivery_mode = 2;
+      }
+
+      return *this;
+    }
+
+    Properties &headers(Params &&params) {
+      mParams = std::move(params);
+
+      mProperties._flags = AMQP_BASIC_HEADERS_FLAG;
+      mProperties.headers = mParams.get_params();
+
+      return *this;
+    }
+
+    [[nodiscard]] amqp_basic_properties_t const * get_properties() const {
+      return &mProperties;
+    }
+
+  private:
+    amqp_basic_properties_t mProperties;
+    Params mParams;
   };
 
   struct Exchange {
@@ -419,7 +643,7 @@ namespace jrabbit {
       }
     }
 
-    void declare_exchange(Exchange const &exchange) const {
+    void declare_exchange(Exchange const &exchange, Params const &params = Params{}) const {
       std::string exchangeType = "fanout";
 
       if (exchange.type() == Exchange::Type::DIRECT) {
@@ -431,7 +655,7 @@ namespace jrabbit {
       amqp_exchange_declare(mState, mChannel, amqp_cstring_bytes(exchange.name().c_str()),
                             amqp_cstring_bytes(exchangeType.c_str()), exchange.passive() ? 1 : 0,
                             exchange.durable() ? 1 : 0, exchange.auto_delete() ? 1 : 0, exchange.internal() ? 1 : 0,
-                            amqp_empty_table);
+                            params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
@@ -446,15 +670,10 @@ namespace jrabbit {
       }
     }
 
-    void declare_queue(Queue const &queue) const {
-      amqp_table_t args{
-        .num_entries = 0,
-        .entries = nullptr
-      };
-
+    void declare_queue(Queue const &queue, Params const &params = Params{}) const {
       amqp_queue_declare(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                          queue.passive() ? 1 : 0,
-                         queue.durable() ? 1 : 0, queue.exclusive() ? 1 : 0, queue.auto_delete() ? 1 : 0, args);
+                         queue.durable() ? 1 : 0, queue.exclusive() ? 1 : 0, queue.auto_delete() ? 1 : 0, params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
@@ -480,30 +699,30 @@ namespace jrabbit {
       }
     }
 
-    void bind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}) const {
+    void bind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}, Params const &params = Params{}) const {
       amqp_queue_bind(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                       amqp_cstring_bytes(exchange.name().c_str()), amqp_cstring_bytes(routingKey.name().c_str()),
-                      amqp_empty_table);
+                      params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
-    void unbind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}) const {
+    void unbind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}, Params const &params = Params{}) const {
       amqp_queue_unbind(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                         amqp_cstring_bytes(exchange.name().c_str()), amqp_cstring_bytes(routingKey.name().c_str()),
-                        amqp_empty_table);
+                        params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
-    void publish(Exchange const &exchange, Message const &message, RoutingKey const &routingKey = {}) const {
+    void publish(Exchange const &exchange, Message const &message, RoutingKey const &routingKey = {}, Properties const &properties = {}) const {
       if (auto result = amqp_basic_publish(mState, 1, amqp_cstring_bytes(exchange.name().c_str()),
                                            amqp_cstring_bytes(routingKey.name().c_str()), message.mandatory(),
-                                           message.immediate(), nullptr,
+                                           message.immediate(), properties.get_properties(),
                                            amqp_cstring_bytes(message.data().c_str())); result != AMQP_STATUS_OK) {
         throw std::runtime_error{amqp_error_string2(result)};
       }
@@ -526,10 +745,10 @@ namespace jrabbit {
 
     [[nodiscard]] std::generator<Envelope> consume(Queue const &queue, RoutingKey const &routingKey = {},
                                                    std::chrono::milliseconds timeout = {}, bool noLocal = {},
-                                                   bool noAck = {true}, bool exclusive = {}) const {
+                                                   bool noAck = {true}, bool exclusive = {}, Params const &params = Params{}) const {
       amqp_basic_consume(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                          amqp_cstring_bytes(routingKey.name().c_str()), noLocal ? 1 : 0, noAck ? 1 : 0,
-                         exclusive ? 1 : 0, amqp_empty_table);
+                         exclusive ? 1 : 0, params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
@@ -682,6 +901,31 @@ namespace jrabbit {
       }
 
       amqp_maybe_release_buffers_on_channel(mState, mChannel);
+    }
+
+    bool transaction(std::function<void(Channel &)> const &callback) {
+      amqp_tx_select(mState, mChannel);
+      amqp_get_rpc_reply(mState);
+
+      try {
+        callback(*this);
+      } catch (const std::exception &e) {
+        amqp_tx_rollback(mState, mChannel);
+
+        if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
+          throw std::runtime_error(result.value());
+        }
+
+        return false;
+      }
+
+      amqp_tx_commit(mState, mChannel);
+
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
+        throw std::runtime_error(result.value());
+      }
+
+      return true;
     }
 
   private:
