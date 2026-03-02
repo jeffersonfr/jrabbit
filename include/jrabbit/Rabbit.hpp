@@ -643,7 +643,7 @@ namespace jrabbit {
       }
     }
 
-    void declare_exchange(Exchange const &exchange, Params const &params = Params{}) const {
+    void declare_exchange(Exchange const &exchange, Params params = Params{}) const {
       std::string exchangeType = "fanout";
 
       if (exchange.type() == Exchange::Type::DIRECT) {
@@ -670,7 +670,7 @@ namespace jrabbit {
       }
     }
 
-    void declare_queue(Queue const &queue, Params const &params = Params{}) const {
+    void declare_queue(Queue const &queue, Params params = Params{}) const {
       amqp_queue_declare(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                          queue.passive() ? 1 : 0,
                          queue.durable() ? 1 : 0, queue.exclusive() ? 1 : 0, queue.auto_delete() ? 1 : 0, params.get_params());
@@ -699,7 +699,7 @@ namespace jrabbit {
       }
     }
 
-    void bind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}, Params const &params = Params{}) const {
+    void bind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}, Params params = Params{}) const {
       amqp_queue_bind(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                       amqp_cstring_bytes(exchange.name().c_str()), amqp_cstring_bytes(routingKey.name().c_str()),
                       params.get_params());
@@ -709,7 +709,7 @@ namespace jrabbit {
       }
     }
 
-    void unbind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}, Params const &params = Params{}) const {
+    void unbind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}, Params params = Params{}) const {
       amqp_queue_unbind(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                         amqp_cstring_bytes(exchange.name().c_str()), amqp_cstring_bytes(routingKey.name().c_str()),
                         params.get_params());
@@ -745,7 +745,8 @@ namespace jrabbit {
 
     [[nodiscard]] std::generator<Envelope> consume(Queue const &queue, RoutingKey const &routingKey = {},
                                                    std::chrono::milliseconds timeout = {}, bool noLocal = {},
-                                                   bool noAck = {true}, bool exclusive = {}, Params const &params = Params{}) const {
+                                                   bool noAck = {true}, bool exclusive = {}, Params const params = Params{}) const {
+
       amqp_basic_consume(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
                          amqp_cstring_bytes(routingKey.name().c_str()), noLocal ? 1 : 0, noAck ? 1 : 0,
                          exclusive ? 1 : 0, params.get_params());
@@ -882,7 +883,7 @@ namespace jrabbit {
       amqp_maybe_release_buffers_on_channel(mState, mChannel);
     }
 
-    void qos(const std::string &consumer_tag, uint32_t prefetchSize, uint16_t prefetchCount = {1},
+    void qos(uint32_t prefetchSize, uint16_t prefetchCount = {1},
              bool global = {}) const {
       amqp_basic_qos(mState, mChannel, prefetchSize, prefetchCount, global ? 1 : 0);
 
@@ -999,7 +1000,7 @@ namespace jrabbit {
       if (!mSocket) {
         amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
 
-        throw std::runtime_error{"unable to connect to host"};
+        throw std::runtime_error{"unable to initialize connection"};
       }
 
       if (mContext.timeout().count() > 0) {
@@ -1012,14 +1013,14 @@ namespace jrabbit {
           amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
           amqp_destroy_connection(mState);
 
-          throw std::runtime_error{"unable to create socket connection"};
+          throw std::runtime_error{"connection timeout"};
         }
       } else {
         if (amqp_socket_open(mSocket, mContext.host().c_str(), mContext.port()) != AMQP_STATUS_OK) {
           amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
           amqp_destroy_connection(mState);
 
-          throw std::runtime_error{"unable to create socket connection"};
+          throw std::runtime_error{"connection error"};
         }
       }
 

@@ -25,7 +25,7 @@ struct jRabbitSuite : public ::testing::Test {
 	}
 };
 
-const std::string RabbitServer = "rabbit.jsys.zapto.org";
+const std::string RabbitServer = "192.168.0.133";
 const int RabbitPort = 5672;
 
 TEST_F(jRabbitSuite, ProceduralTest) {
@@ -33,6 +33,8 @@ TEST_F(jRabbitSuite, ProceduralTest) {
 	auto state = jrabbit::RabbitMq::connect(context);
 
 	if (!state) {
+		std::println(std::cout, "Error: {}", state.error());
+
 		FAIL();
 	}
 
@@ -52,10 +54,14 @@ TEST_F(jRabbitSuite, ProceduralTest) {
 	// -- send messsage
 	channel->publish(ex, jrabbit::Message{"testando mensagem 1 ..."});
 
-	for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1})) {
-		std::cout << "MSG: " << e.data() << std::endl;
+	try {
+		for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1})) {
+			std::cout << "MSG: " << e.data() << std::endl;
 
-		break;
+			break;
+		}
+	} catch (std::runtime_error &e) {
+		std::println(std::cout, "Error: {}", e.what());
 	}
 
 	// -- unbinding objects
@@ -97,9 +103,11 @@ TEST_F(jRabbitSuite, MonadTest) {
 				try {
 					for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1})) {
 						std::cout << "MSG: " << e.data() << std::endl;
+
+						break;
 					}
 				} catch (std::runtime_error &e) {
-
+					std::println(std::cout, "Error: {}", e.what());
 				}
 
 				// -- unbinding objects
@@ -114,9 +122,11 @@ TEST_F(jRabbitSuite, MonadTest) {
 				channel->delete_exchange(ex);
 
 				return std::move(mq);
-		});
+	});
 
 	if (!result) {
+		std::println(std::cout, "Error: {}", result.error());
+
 		FAIL();
 	}
 }
@@ -135,7 +145,7 @@ TEST_F(jRabbitSuite, StreamTest) {
 	auto channel = state->open(1);
 
 	auto ex = jrabbit::Exchange{"exchange1"}.type(jrabbit::Exchange::Type::FANOUT);
-	auto q1 = jrabbit::Queue{"queue1"};
+	auto q1 = jrabbit::Queue{"queue1"}.durable(true);
 	auto rk = jrabbit::RoutingKey{};
 
 	// -- creating objects
@@ -147,16 +157,22 @@ TEST_F(jRabbitSuite, StreamTest) {
 
 	// -- send messsage
 	auto offset = jrabbit::Params{}
-		.put_int32("x-stream-offset", 1);
+		.put_int32("x-stream-offset", 1); // print second published message
 
-	channel->publish(ex, jrabbit::Message{"testando mensagem 1 ..."});
-	channel->publish(ex, jrabbit::Message{"testando mensagem 2 ..."});
-	channel->publish(ex, jrabbit::Message{"testando mensagem 3 ..."});
+	channel->publish(ex, jrabbit::Message{"testando stream 1 ..."});
+	channel->publish(ex, jrabbit::Message{"testando stream 2 ..."});
+	channel->publish(ex, jrabbit::Message{"testando stream 3 ..."});
 
-	for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1}, false, false, false, offset)) {
-		std::cout << "MSG: " << e.data() << std::endl;
+	channel->qos(0, 100);
 
-		break;
+	try {
+		for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1}, false, false, false, offset)) {
+			std::cout << "MSG: " << e.data() << std::endl;
+
+			break;
+		}
+	} catch (std::runtime_error &e) {
+		std::println(std::cout, "Error: {}", e.what());
 	}
 
 	// -- unbinding objects
