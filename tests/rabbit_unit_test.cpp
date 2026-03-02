@@ -25,7 +25,7 @@ struct jRabbitSuite : public ::testing::Test {
 	}
 };
 
-const std::string RabbitServer = "192.168.0.133";
+const std::string RabbitServer = "rabbitmq.host";
 const int RabbitPort = 5672;
 
 TEST_F(jRabbitSuite, ProceduralTest) {
