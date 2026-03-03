@@ -6,6 +6,7 @@
 #include <functional>
 #include <iostream>
 #include <generator>
+#include <string_view>
 
 #include <rabbitmq-c/amqp.h>
 #include <rabbitmq-c/tcp_socket.h>
@@ -104,10 +105,13 @@ namespace jrabbit {
 
     Params() = default;
 
-    Params & put_void(char const *key) {
+    Params & put_void(std::string_view key) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_VOID;
 
       mParams.push_back(entry);
@@ -115,10 +119,13 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_bool(char const *key, bool value) {
+    Params & put_bool(std::string_view key, bool value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_BOOLEAN;
       entry.value.value.boolean = value;
 
@@ -127,10 +134,28 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_int16(char const *key, int16_t value) {
+    Params & put_int8(std::string_view key, int8_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
+      entry.value.kind = AMQP_FIELD_KIND_I8;
+      entry.value.value.i8 = value;
+
+      mParams.push_back(entry);
+
+      return *this;
+    }
+
+    Params & put_int16(std::string_view key, int16_t value) {
+      ::amqp_table_entry_t entry;
+
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_I16;
       entry.value.value.i16 = value;
 
@@ -139,10 +164,13 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_int32(char const *key, int32_t value) {
+    Params & put_int32(std::string_view key, int32_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_I32;
       entry.value.value.i32 = value;
 
@@ -151,10 +179,13 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_int64(char const *key, int64_t value) {
+    Params & put_int64(std::string_view key, int64_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_I64;
       entry.value.value.i64 = value;
 
@@ -163,10 +194,13 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_uint8(char const *key, uint8_t value) {
+    Params & put_uint8(std::string_view key, uint8_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_U8;
       entry.value.value.u8 = value;
 
@@ -175,10 +209,13 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_uint16(char const *key, uint16_t value) {
+    Params & put_uint16(std::string_view key, uint16_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_U16;
       entry.value.value.u16 = value;
 
@@ -187,10 +224,13 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_uint32(char const *key, uint32_t value) {
+    Params & put_uint32(std::string_view key, uint32_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_U32;
       entry.value.value.u32 = value;
 
@@ -199,10 +239,13 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_uint64(char const *key, uint64_t value) {
+    Params & put_uint64(std::string_view key, uint64_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_U64;
       entry.value.value.u64 = value;
 
@@ -211,10 +254,13 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_float32(char const *key, float value) {
+    Params & put_float32(std::string_view key, float value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_F32;
       entry.value.value.f32 = value;
 
@@ -223,10 +269,13 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_float64(char const *key, double value) {
+    Params & put_float64(std::string_view key, double value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_F64;
       entry.value.value.f64 = value;
 
@@ -235,24 +284,36 @@ namespace jrabbit {
       return *this;
     }
 
-    Params & put_text(char const *key, char const *value) {
+    Params & put_text(std::string_view key, std::string_view value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_UTF8;
-      entry.value.value.bytes = amqp_cstring_bytes(value);
+      entry.value.value.bytes = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
 
       mParams.push_back(entry);
 
       return *this;
     }
 
-    Params & put_bytes(char const *key, char const *value) {
+    Params & put_bytes(std::string_view key, std::string_view value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_cstring_bytes(key);
+      entry.key = amqp_bytes_t {
+        .len = key.length(),
+        .bytes = (void *)key.data()
+      };
       entry.value.kind = AMQP_FIELD_KIND_BYTES;
-      entry.value.value.bytes = amqp_cstring_bytes(value);
+      entry.value.value.bytes = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
 
       mParams.push_back(entry);
 
@@ -285,16 +346,24 @@ namespace jrabbit {
     Properties()
       : mProperties{} {}
 
-    Properties &content_type(char const *value) {
+    Properties &content_type(std::string_view value) {
       mProperties._flags = AMQP_BASIC_CONTENT_TYPE_FLAG;
-      mProperties.content_type = amqp_cstring_bytes(value);
+      mProperties.content_type = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
+
 
       return *this;
     }
 
-    Properties &encoding(char const *value) {
+    Properties &encoding(std::string_view value) {
       mProperties._flags = AMQP_BASIC_CONTENT_ENCODING_FLAG;
-      mProperties.content_encoding = amqp_cstring_bytes(value);
+      mProperties.content_encoding  = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
+
 
       return *this;
     }
@@ -318,36 +387,47 @@ namespace jrabbit {
       return *this;
     }
 
-    Properties &reply_to(char const *value) {
+    Properties &reply_to(std::string_view value) {
       mProperties._flags = AMQP_BASIC_REPLY_TO_FLAG;
-      mProperties.reply_to = amqp_cstring_bytes(value);
+      mProperties.reply_to = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
+
 
       return *this;
     }
 
-    Properties &expiration(char const *value) {
+    Properties &expiration(std::string_view value) {
       mProperties._flags = AMQP_BASIC_EXPIRATION_FLAG;
-      mProperties.expiration = amqp_cstring_bytes(value);
+      mProperties.expiration = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
+
 
       return *this;
     }
 
-    Properties &message_id(char const *value) {
+    Properties &message_id(std::string_view value) {
       mProperties._flags = AMQP_BASIC_MESSAGE_ID_FLAG;
-      mProperties.message_id = amqp_cstring_bytes(value);
+      mProperties.message_id = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
+
 
       return *this;
     }
 
-    template <typename Clock>
-    Properties &timestamp(std::chrono::time_point<Clock> value) {
+    Properties &timestamp(std::chrono::milliseconds value) {
       mProperties._flags = AMQP_BASIC_TIMESTAMP_FLAG;
-      mProperties.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(value.time_since_epoch()).count();
+      mProperties.timestamp = value.count();
 
       return *this;
     }
 
-    Properties &headers(Params &&params) {
+    Properties &headers(Params params) {
       mParams = std::move(params);
 
       mProperties._flags = AMQP_BASIC_HEADERS_FLAG;
@@ -374,17 +454,17 @@ namespace jrabbit {
 
     Exchange() = default;
 
-    explicit Exchange(std::string name)
-      : mName{std::move(name)} {
+    explicit Exchange(std::string_view name)
+      : mName{name} {
     }
 
-    Exchange &name(std::string const &value) {
+    Exchange &name(std::string_view const &value) {
       mName = value;
 
       return *this;
     }
 
-    [[nodiscard]] std::string const &name() const {
+    [[nodiscard]] std::string_view const &name() const {
       return mName;
     }
 
@@ -439,7 +519,7 @@ namespace jrabbit {
     }
 
   private:
-    std::string mName{};
+    std::string_view mName{""};
     bool mPassive{};
     bool mDurable{};
     bool mAutoDelete{};
@@ -450,38 +530,38 @@ namespace jrabbit {
   struct RoutingKey {
     RoutingKey() = default;
 
-    explicit RoutingKey(std::string name)
-      : mName{std::move(name)} {
+    explicit RoutingKey(std::string_view name)
+      : mName{name} {
     }
 
-    RoutingKey &name(std::string const &value) {
+    RoutingKey &name(std::string_view const &value) {
       mName = value;
 
       return *this;
     }
 
-    [[nodiscard]] std::string const &name() const {
+    [[nodiscard]] std::string_view const &name() const {
       return mName;
     }
 
   private:
-    std::string mName{};
+    std::string_view mName{""};
   };
 
   struct Queue {
     Queue() = default;
 
-    explicit Queue(std::string name)
+    explicit Queue(std::string_view name)
       : mName{std::move(name)} {
     }
 
-    Queue &name(std::string const &value) {
+    Queue &name(std::string_view const &value) {
       mName = value;
 
       return *this;
     }
 
-    [[nodiscard]] std::string const &name() const {
+    [[nodiscard]] std::string_view const &name() const {
       return mName;
     }
 
@@ -526,7 +606,7 @@ namespace jrabbit {
     }
 
   private:
-    std::string mName{};
+    std::string_view mName{""};
     bool mPassive{};
     bool mDurable{};
     bool mExclusive{};
@@ -534,11 +614,11 @@ namespace jrabbit {
   };
 
   struct Message {
-    explicit Message(std::string message)
-      : mMessage{std::move(message)} {
+    explicit Message(std::string_view message)
+      : mMessage{message} {
     }
 
-    [[nodiscard]] std::string const &data() const {
+    [[nodiscard]] std::string_view data() const {
       return mMessage;
     }
 
@@ -563,88 +643,190 @@ namespace jrabbit {
     }
 
   private:
-    std::string mMessage{};
+    std::string_view mMessage{""};
     bool mMandatory{};
     bool mImmediate{};
   };
 
   struct Envelope {
-    explicit Envelope(std::string message)
-      : mMessage{std::move(message)} {
+    virtual ~Envelope() = default;
+
+    [[nodiscard]] virtual std::string_view data() const = 0;
+
+    [[nodiscard]] virtual int channel() const = 0;
+
+    [[nodiscard]] virtual uint64_t delivery_tag() const = 0;
+
+    [[nodiscard]] virtual std::string_view consumer_tag() const = 0;
+
+    [[nodiscard]] virtual std::string_view exchange() const = 0;
+
+    [[nodiscard]] virtual std::string_view routing_key() const = 0;
+
+    [[nodiscard]] virtual bool redelivered() const = 0;
+
+    [[nodiscard]] virtual Properties properties() const = 0;
+
+  protected:
+    Envelope() = default;
+
+    [[nodiscard]] static Properties get_properties(amqp_basic_properties_t const & properties) {
+      auto headers = Params{};
+
+      for (int i=0; i<properties.headers.num_entries; i++) {
+        auto entry = properties.headers.entries[i];
+
+        if (entry.value.kind == AMQP_FIELD_KIND_VOID) {
+          headers.put_void({static_cast<char *>(entry.key.bytes), entry.key.len});
+        } else if (entry.value.kind == AMQP_FIELD_KIND_BOOLEAN) {
+          headers.put_bool({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.boolean);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_I8) {
+          headers.put_int8({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i8);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_I16) {
+          headers.put_int16({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i16);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_I32) {
+          headers.put_int32({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i32);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_I64) {
+          headers.put_int64({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i64);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_U8) {
+          headers.put_uint8({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u8);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_U16) {
+          headers.put_uint16({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u16);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_U32) {
+          headers.put_uint32({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u32);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_U64) {
+          headers.put_uint64({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u64);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_F32) {
+          headers.put_float32({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.f32);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_F64) {
+          headers.put_float64({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.f64);
+        } else if (entry.value.kind == AMQP_FIELD_KIND_UTF8) {
+          headers.put_text({static_cast<char *>(entry.key.bytes), entry.key.len}, {static_cast<char *>(entry.value.value.bytes.bytes), entry.value.value.bytes.len});
+        } else if (entry.value.kind == AMQP_FIELD_KIND_BYTES) {
+          headers.put_bytes({static_cast<char *>(entry.key.bytes), entry.key.len}, {static_cast<char *>(entry.value.value.bytes.bytes), entry.value.value.bytes.len});
+        }
+      }
+
+      return Properties{}
+        .priority(properties.priority)
+        .timestamp(std::chrono::milliseconds{properties.timestamp})
+        .delivery_mode((properties.delivery_mode == 2) ? Properties::DeliveryMode::Persistent : Properties::DeliveryMode::NonPersistent)
+        .content_type({static_cast<char *>(properties.content_type.bytes), properties.content_type.len})
+        .encoding({static_cast<char *>(properties.content_encoding.bytes), properties.content_encoding.len})
+        .expiration({static_cast<char *>(properties.expiration.bytes), properties.expiration.len})
+        .message_id({static_cast<char *>(properties.message_id.bytes), properties.message_id.len})
+        .reply_to({static_cast<char *>(properties.reply_to.bytes), properties.reply_to.len})
+        .headers(headers);
+    }
+  };
+
+  struct RabbitMqEnvelopeWrapper : public Envelope {
+    explicit RabbitMqEnvelopeWrapper(amqp_envelope_t envelope)
+      : Envelope{}, mEnvelope{envelope} {
     }
 
-    [[nodiscard]] std::string const &data() const {
-      return mMessage;
+    ~RabbitMqEnvelopeWrapper() override {
+      amqp_destroy_envelope(&mEnvelope);
     }
 
-    Envelope &delivery_tag(uint64_t value) {
-      mDeliveryTag = value;
-
-      return *this;
+    [[nodiscard]] std::string_view data() const override {
+      return {static_cast<char *>(mEnvelope.message.body.bytes), mEnvelope.message.body.len};
     }
 
-    [[nodiscard]] uint64_t delivery_tag() const {
-      return mDeliveryTag;
+    [[nodiscard]] int channel() const override {
+      return mEnvelope.channel;
     }
 
-    Envelope &consumer_tag(std::string const &value) {
-      mConsumerTag = value;
-
-      return *this;
+    [[nodiscard]] uint64_t delivery_tag() const override {
+      return mEnvelope.delivery_tag;
     }
 
-    [[nodiscard]] std::string const &consumer_tag() const {
-      return mConsumerTag;
+    [[nodiscard]] std::string_view consumer_tag() const override {
+      return {static_cast<char *>(mEnvelope.consumer_tag.bytes), mEnvelope.consumer_tag.len};
     }
 
-    Envelope &exchange(std::string const &value) {
-      mExchange = value;
-
-      return *this;
+    [[nodiscard]] std::string_view exchange() const override {
+      return {static_cast<char *>(mEnvelope.exchange.bytes), mEnvelope.exchange.len};
     }
 
-    [[nodiscard]] std::string const &exchange() const {
-      return mExchange;
+    [[nodiscard]] std::string_view routing_key() const override {
+      return {static_cast<char *>(mEnvelope.routing_key.bytes), mEnvelope.routing_key.len};
     }
 
-    Envelope &routing_key(std::string const &value) {
-      mRoutingKey = value;
-
-      return *this;
+    [[nodiscard]] bool redelivered() const override {
+      return mEnvelope.redelivered;
     }
 
-    [[nodiscard]] std::string const &routing_key() const {
-      return mRoutingKey;
-    }
-
-    Envelope &redelivered(bool value) {
-      mRedelivered = value;
-
-      return *this;
-    }
-
-    [[nodiscard]] bool redelivered() const {
-      return mRedelivered;
-    }
-
-    Envelope &mandatory(bool value) {
-      mMandatory = value;
-
-      return *this;
-    }
-
-    [[nodiscard]] bool mandatory() const {
-      return mMandatory;
+    [[nodiscard]] Properties properties() const override {
+      return get_properties(mEnvelope.message.properties);
     }
 
   private:
-    std::string mMessage{};
-    std::string mConsumerTag{};
-    std::string mExchange{};
-    std::string mRoutingKey{};
-    uint64_t mDeliveryTag{};
-    bool mRedelivered{};
-    bool mMandatory{};
+    amqp_envelope_t mEnvelope;
+  };
+
+  struct RabbitMqMessasgeWrapper : public Envelope {
+    explicit RabbitMqMessasgeWrapper(amqp_message_t message, amqp_basic_get_ok_t *reply, int channel)
+      : Envelope{}, mMessage{message}, mReply {reply}, mChannel{channel}
+    {
+    }
+
+    ~RabbitMqMessasgeWrapper() override {
+      amqp_destroy_message(&mMessage);
+    }
+
+    [[nodiscard]] std::string_view data() const override {
+      return {static_cast<char *>(mMessage.body.bytes), mMessage.body.len};
+    }
+
+    [[nodiscard]] int channel() const override {
+      return mChannel;
+    }
+
+    [[nodiscard]] uint64_t delivery_tag() const override {
+      if (!mReply) {
+        return 0;
+      }
+
+      return mReply->delivery_tag;
+    }
+
+    [[nodiscard]] std::string_view consumer_tag() const override {
+      return {""};
+    }
+
+    [[nodiscard]] std::string_view exchange() const override {
+      if (!mReply) {
+        return {""};
+      }
+
+      return {static_cast<char *>(mReply->exchange.bytes), mReply->exchange.len};
+    }
+
+    [[nodiscard]] std::string_view routing_key() const override {
+      if (!mReply) {
+        return {""};
+      }
+
+      return {static_cast<char *>(mReply->routing_key.bytes), mReply->routing_key.len};
+    }
+
+    [[nodiscard]] bool redelivered() const override {
+      if (!mReply) {
+        return false;
+      }
+
+      return mReply->redelivered;
+    }
+
+    [[nodiscard]] Properties properties() const override {
+      return get_properties(mMessage.properties);
+    }
+
+  private:
+    amqp_message_t mMessage;
+    amqp_basic_get_ok_t *mReply{nullptr};
+    int mChannel{-1};
   };
 
   static std::optional<std::string> amqp_error(amqp_rpc_reply_t x) {
@@ -687,7 +869,7 @@ namespace jrabbit {
     }
 
     void declare_exchange(Exchange const &exchange, Params params = Params{}) const {
-      std::string exchangeType = "fanout";
+      std::string_view exchangeType = "fanout";
 
       if (exchange.type() == Exchange::Type::DIRECT) {
         exchangeType = "direct";
@@ -695,8 +877,8 @@ namespace jrabbit {
         exchangeType = "topic";
       }
 
-      amqp_exchange_declare(mState, mChannel, amqp_cstring_bytes(exchange.name().c_str()),
-                            amqp_cstring_bytes(exchangeType.c_str()), exchange.passive() ? 1 : 0,
+      amqp_exchange_declare(mState, mChannel, amqp_cstring_bytes(exchange.name().data()),
+                            amqp_cstring_bytes(exchangeType.data()), exchange.passive() ? 1 : 0,
                             exchange.durable() ? 1 : 0, exchange.auto_delete() ? 1 : 0, exchange.internal() ? 1 : 0,
                             params.get_params());
 
@@ -706,7 +888,7 @@ namespace jrabbit {
     }
 
     void delete_exchange(Exchange const &exchange, bool ifUnused = false) const {
-      amqp_exchange_delete(mState, mChannel, amqp_cstring_bytes(exchange.name().c_str()), ifUnused);
+      amqp_exchange_delete(mState, mChannel, amqp_cstring_bytes(exchange.name().data()), ifUnused);
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
@@ -714,7 +896,7 @@ namespace jrabbit {
     }
 
     void declare_queue(Queue const &queue, Params params = Params{}) const {
-      amqp_queue_declare(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
+      amqp_queue_declare(mState, mChannel, amqp_cstring_bytes(queue.name().data()),
                          queue.passive() ? 1 : 0,
                          queue.durable() ? 1 : 0, queue.exclusive() ? 1 : 0, queue.auto_delete() ? 1 : 0, params.get_params());
 
@@ -726,7 +908,7 @@ namespace jrabbit {
     }
 
     void delete_queue(Queue const &queue, bool ifUnused = false, bool ifEmpty = false) const {
-      amqp_queue_delete(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()), ifUnused ? 1 : 0,
+      amqp_queue_delete(mState, mChannel, amqp_cstring_bytes(queue.name().data()), ifUnused ? 1 : 0,
                         ifEmpty ? 1 : 0);
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
@@ -735,7 +917,7 @@ namespace jrabbit {
     }
 
     void purge_queue(Queue const &queue) const {
-      amqp_queue_purge(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()));
+      amqp_queue_purge(mState, mChannel, amqp_cstring_bytes(queue.name().data()));
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
@@ -743,8 +925,8 @@ namespace jrabbit {
     }
 
     void bind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}, Params params = Params{}) const {
-      amqp_queue_bind(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
-                      amqp_cstring_bytes(exchange.name().c_str()), amqp_cstring_bytes(routingKey.name().c_str()),
+      amqp_queue_bind(mState, mChannel, amqp_cstring_bytes(queue.name().data()),
+                      amqp_cstring_bytes(exchange.name().data()), amqp_cstring_bytes(routingKey.name().data()),
                       params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
@@ -753,8 +935,8 @@ namespace jrabbit {
     }
 
     void unbind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {}, Params params = Params{}) const {
-      amqp_queue_unbind(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
-                        amqp_cstring_bytes(exchange.name().c_str()), amqp_cstring_bytes(routingKey.name().c_str()),
+      amqp_queue_unbind(mState, mChannel, amqp_cstring_bytes(queue.name().data()),
+                        amqp_cstring_bytes(exchange.name().data()), amqp_cstring_bytes(routingKey.name().data()),
                         params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
@@ -763,10 +945,10 @@ namespace jrabbit {
     }
 
     void publish(Exchange const &exchange, Message const &message, RoutingKey const &routingKey = {}, Properties const &properties = {}) const {
-      if (auto result = amqp_basic_publish(mState, 1, amqp_cstring_bytes(exchange.name().c_str()),
-                                           amqp_cstring_bytes(routingKey.name().c_str()), message.mandatory(),
+      if (auto result = amqp_basic_publish(mState, 1, amqp_cstring_bytes(exchange.name().data()),
+                                           amqp_cstring_bytes(routingKey.name().data()), message.mandatory(),
                                            message.immediate(), properties.get_properties(),
-                                           amqp_cstring_bytes(message.data().c_str())); result != AMQP_STATUS_OK) {
+                                           amqp_cstring_bytes(message.data().data())); result != AMQP_STATUS_OK) {
         throw std::runtime_error{amqp_error_string2(result)};
       }
 
@@ -786,8 +968,8 @@ namespace jrabbit {
       amqp_maybe_release_buffers_on_channel(mState, mChannel);
     }
 
-    [[nodiscard]] std::optional<Envelope> get(Queue const &queue, bool noAck = {true}) const {
-      amqp_rpc_reply_t reply = amqp_basic_get(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()), noAck ? 1 : 0);
+    [[nodiscard]] std::optional<std::unique_ptr<Envelope>> get(Queue const &queue, bool noAck = {true}) const {
+      amqp_rpc_reply_t reply = amqp_basic_get(mState, mChannel, amqp_cstring_bytes(queue.name().data()), noAck ? 1 : 0);
 
       if (auto result = amqp_error(reply); result) {
         throw std::runtime_error(result.value());
@@ -806,54 +988,37 @@ namespace jrabbit {
         amqp_rpc_reply_t msg_reply = amqp_read_message(mState, mChannel, &message, 0);
 
         if (msg_reply.reply_type == AMQP_RESPONSE_NORMAL) {
-          auto exchange = msg->exchange;
-          auto routing_key = msg->routing_key;
-          auto result = Envelope{{static_cast<char *>(message.body.bytes), message.body.len}}
-            .delivery_tag(msg->delivery_tag)
-            .redelivered(msg->redelivered)
-            .exchange({static_cast<char *>(exchange.bytes), exchange.len})
-            .routing_key({static_cast<char *>(routing_key.bytes), routing_key.len});
-
-          // If no_ack was false, you must acknowledge the message
-          // amqp_basic_ack(mState, mChannel, msg->delivery_tag, 0);
-
-          amqp_destroy_message(&message); // Clean up the message object
-
-          return result;
+          return std::make_unique<RabbitMqMessasgeWrapper>(message, msg, -1);
         }
       }
 
       return {};
     }
 
-    [[nodiscard]] std::generator<Envelope> consume(Queue const &queue, RoutingKey const &routingKey = {},
+    [[nodiscard]] std::generator<std::unique_ptr<Envelope>> consume(Queue const &queue, RoutingKey const &routingKey = {},
                                                    std::chrono::milliseconds timeout = {}, bool noLocal = {},
                                                    bool noAck = {true}, bool exclusive = {}, Params const params = Params{}) const {
 
-      amqp_basic_consume(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()),
-                         amqp_cstring_bytes(routingKey.name().c_str()), noLocal ? 1 : 0, noAck ? 1 : 0,
+      amqp_basic_consume(mState, mChannel, amqp_cstring_bytes(queue.name().data()),
+                         amqp_cstring_bytes(routingKey.name().data()), noLocal ? 1 : 0, noAck ? 1 : 0,
                          exclusive ? 1 : 0, params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
 
-      struct timeval tval{
-        .tv_sec = mContext.timeout().count() / 1000,
-        .tv_usec = mContext.timeout().count() * 1000
-      };
-      amqp_frame_t frame;
-
-      while (true) {
-        auto result = consume(timeout);
-
-        if (result) {
-          co_yield result.value();
+      try {
+        while (true) {
+          if (auto result = consume(timeout); result) {
+            co_yield std::move(result.value());
+          }
         }
+      } catch (std::exception &e) {
+        co_return;
       }
     }
 
-    [[nodiscard]] std::optional<Envelope> consume(std::chrono::milliseconds timeout = {}) const {
+    [[nodiscard]] std::optional<std::unique_ptr<Envelope>> consume(std::chrono::milliseconds timeout = {}) const {
       amqp_envelope_t envelope;
       struct timeval tval{
         .tv_sec = mContext.timeout().count() / 1000,
@@ -868,16 +1033,7 @@ namespace jrabbit {
       }
 
       if (AMQP_RESPONSE_NORMAL == reply.reply_type) {
-        auto result = Envelope{{static_cast<char *>(envelope.message.body.bytes), envelope.message.body.len}}
-            .delivery_tag(envelope.delivery_tag)
-            .consumer_tag({static_cast<char *>(envelope.consumer_tag.bytes), envelope.consumer_tag.len})
-            .redelivered(envelope.redelivered)
-            .exchange({static_cast<char *>(envelope.exchange.bytes), envelope.exchange.len})
-            .routing_key({static_cast<char *>(envelope.routing_key.bytes), envelope.routing_key.len});
-
-        amqp_destroy_envelope(&envelope);
-
-        return result;
+        return std::make_unique<RabbitMqEnvelopeWrapper>(envelope);
       }
 
       if (reply.reply_type == AMQP_RESPONSE_NONE) {
@@ -923,11 +1079,7 @@ namespace jrabbit {
               throw std::runtime_error(result.value());
             }
 
-            auto msg = Envelope{{static_cast<char *>(message.body.bytes), message.body.len}}.mandatory(true);
-
-            amqp_destroy_message(&message);
-
-            return std::move(msg);
+            return std::make_unique<RabbitMqMessasgeWrapper>(message, nullptr, frame.channel);
           } else if (frame.payload.method.id == AMQP_CHANNEL_CLOSE_METHOD) {
             // a channel.close method happens when a channel exception occurs, this can happen by publishing to an
             // exchange that doesn't existfor example. In this case you would need to open another channel redeclare
@@ -992,8 +1144,8 @@ namespace jrabbit {
       amqp_maybe_release_buffers_on_channel(mState, mChannel);
     }
 
-    void cancel(const std::string &consumerTag) const {
-      amqp_basic_cancel(mState, mChannel, amqp_cstring_bytes(consumerTag.c_str()));
+    void cancel(const std::string_view consumerTag) const {
+      amqp_basic_cancel(mState, mChannel, amqp_cstring_bytes(consumerTag.data()));
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
@@ -1107,14 +1259,14 @@ namespace jrabbit {
           .tv_usec = mContext.timeout().count() * 1000
         };
 
-        if (amqp_socket_open_noblock(mSocket, mContext.host().c_str(), mContext.port(), &tval) != AMQP_STATUS_OK) {
+        if (amqp_socket_open_noblock(mSocket, mContext.host().data(), mContext.port(), &tval) != AMQP_STATUS_OK) {
           amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
           amqp_destroy_connection(mState);
 
           throw std::runtime_error{"connection timeout"};
         }
       } else {
-        if (amqp_socket_open(mSocket, mContext.host().c_str(), mContext.port()) != AMQP_STATUS_OK) {
+        if (amqp_socket_open(mSocket, mContext.host().data(), mContext.port()) != AMQP_STATUS_OK) {
           amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
           amqp_destroy_connection(mState);
 
@@ -1122,9 +1274,9 @@ namespace jrabbit {
         }
       }
 
-      if (auto result = amqp_error(amqp_login(mState, mContext.virtual_host().c_str(), 0, mContext.frame(), 0,
-                                              AMQP_SASL_METHOD_PLAIN, mContext.user().c_str(),
-                                              mContext.pass().c_str())); result) {
+      if (auto result = amqp_error(amqp_login(mState, mContext.virtual_host().data(), 0, mContext.frame(), 0,
+                                              AMQP_SASL_METHOD_PLAIN, mContext.user().data(),
+                                              mContext.pass().data())); result) {
         amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
         amqp_destroy_connection(mState);
 

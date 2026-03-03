@@ -49,14 +49,14 @@ TEST_F(jRabbitSuite, ProceduralTest) {
 	channel->declare_queue(q1);
 
 	// -- binding objects
-	channel->bind(ex, q1);
+	channel->bind(ex, q1, rk);
 
 	// -- send messsage
 	channel->publish(ex, jrabbit::Message{"testando mensagem 1 ..."});
 
 	try {
 		for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1})) {
-			std::cout << "MSG: " << e.data() << std::endl;
+			std::cout << "MSG: " << e->data() << std::endl;
 
 			break;
 		}
@@ -102,7 +102,7 @@ TEST_F(jRabbitSuite, MonadTest) {
 				// -- reading q1
 				try {
 					for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1})) {
-						std::cout << "MSG: " << e.data() << std::endl;
+						std::cout << "MSG: " << e->data() << std::endl;
 
 						break;
 					}
@@ -167,7 +167,7 @@ TEST_F(jRabbitSuite, StreamTest) {
 
 	try {
 		for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1}, false, false, false, offset)) {
-			std::cout << "MSG: " << e.data() << std::endl;
+			std::cout << "MSG: " << e->data() << std::endl;
 
 			break;
 		}
@@ -213,7 +213,7 @@ TEST_F(jRabbitSuite, PollTest) {
 		auto msg = channel->get(q1);
 
 		if (msg) {
-			std::cout << "MSG: " << msg.value().data() << std::endl;
+			std::cout << "MSG: " << msg.value()->data() << std::endl;
 		}
 	} catch (std::runtime_error &e) {
 		std::println(std::cout, "Error: {}", e.what());
@@ -267,7 +267,7 @@ TEST_F(jRabbitSuite, DeadLetterTest) {
 
 	try {
 		for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1}, false, false, false)) {
-			channel->reject(e);
+			channel->reject(*e);
 
 			break;
 		}
@@ -277,7 +277,7 @@ TEST_F(jRabbitSuite, DeadLetterTest) {
 
 	try {
 		for (auto const &e: channel->consume(dlx_q1, dlx_rk, std::chrono::seconds{1})) {
-			std::cout << "Dead Letter MSG: " << e.data() << std::endl;
+			std::cout << "Dead Letter MSG: " << e->data() << std::endl;
 
 			break;
 		}
