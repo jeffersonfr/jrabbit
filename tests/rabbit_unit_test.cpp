@@ -183,6 +183,50 @@ TEST_F(jRabbitSuite, StreamTest) {
 	channel->delete_exchange(ex);
 }
 
+TEST_F(jRabbitSuite, PollTest) {
+	auto context = jrabbit::Context{}.host(RabbitServer).port(RabbitPort).timeout(std::chrono::seconds{1});
+	auto state = jrabbit::RabbitMq::connect(context);
+
+	if (!state) {
+		std::println(std::cout, "Error: {}", state.error());
+
+		FAIL();
+	}
+
+	auto channel = state->open(1);
+
+	auto ex = jrabbit::Exchange{"exchange1"}.type(jrabbit::Exchange::Type::FANOUT);
+	auto q1 = jrabbit::Queue{"queue1"};
+	auto rk = jrabbit::RoutingKey{};
+
+	// -- creating objects
+	channel->declare_exchange(ex);
+	channel->declare_queue(q1);
+
+	// -- binding objects
+	channel->bind(ex, q1);
+
+	// -- send messsage
+	channel->publish(ex, jrabbit::Message{"testando mensagem 1 ..."});
+
+	try {
+		auto msg = channel->get(q1);
+
+		if (msg) {
+			std::cout << "MSG: " << msg.value().data() << std::endl;
+		}
+	} catch (std::runtime_error &e) {
+		std::println(std::cout, "Error: {}", e.what());
+	}
+
+	// -- unbinding objects
+	channel->unbind(ex, q1);
+
+	// -- delete objects
+	channel->delete_queue(q1);
+	channel->delete_exchange(ex);
+}
+
 int main(int argc, char *argv[]) {
 	::testing::InitGoogleTest(&argc, argv);
 

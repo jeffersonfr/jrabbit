@@ -743,6 +743,46 @@ namespace jrabbit {
       amqp_maybe_release_buffers_on_channel(mState, mChannel);
     }
 
+    [[nodiscard]] std::optional<Envelope> get(Queue const &queue, bool noAck = {true}) const {
+      amqp_rpc_reply_t reply = amqp_basic_get(mState, mChannel, amqp_cstring_bytes(queue.name().c_str()), noAck ? 1 : 0);
+
+      if (auto result = amqp_error(reply); result) {
+        throw std::runtime_error(result.value());
+      }
+
+      if (reply.reply.id == AMQP_BASIC_GET_EMPTY_METHOD) {
+        return {};
+      }
+
+      if (reply.reply.id == AMQP_BASIC_GET_OK_METHOD) {
+        auto *msg = static_cast<amqp_basic_get_ok_t *>(reply.reply.decoded);
+
+        // The actual message content needs to be read separately in C
+        amqp_message_t message;
+
+        amqp_rpc_reply_t msg_reply = amqp_read_message(mState, mChannel, &message, 0);
+
+        if (msg_reply.reply_type == AMQP_RESPONSE_NORMAL) {
+          auto exchange = msg->exchange;
+          auto routing_key = msg->routing_key;
+          auto result = Envelope{{static_cast<char *>(message.body.bytes), message.body.len}}
+            .delivery_tag(msg->delivery_tag)
+            .redelivered(msg->redelivered)
+            .exchange({static_cast<char *>(exchange.bytes), exchange.len})
+            .routing_key({static_cast<char *>(routing_key.bytes), routing_key.len});
+
+          // If no_ack was false, you must acknowledge the message
+          // amqp_basic_ack(mState, mChannel, msg->delivery_tag, 0);
+
+          amqp_destroy_message(&message); // Clean up the message object
+
+          return result;
+        }
+      }
+
+      return {};
+    }
+
     [[nodiscard]] std::generator<Envelope> consume(Queue const &queue, RoutingKey const &routingKey = {},
                                                    std::chrono::milliseconds timeout = {}, bool noLocal = {},
                                                    bool noAck = {true}, bool exclusive = {}, Params const params = Params{}) const {
@@ -762,88 +802,101 @@ namespace jrabbit {
       amqp_frame_t frame;
 
       while (true) {
-        amqp_envelope_t envelope;
-        amqp_rpc_reply_t ret;
+        auto result = consume(timeout);
 
-        amqp_maybe_release_buffers_on_channel(mState, mChannel);
+        if (result) {
+          co_yield result.value();
+        }
+      }
+    }
 
-        ret = amqp_consume_message(mState, &envelope, (timeout.count() > 0) ? &tval : nullptr, 0);
+    [[nodiscard]] std::optional<Envelope> consume(std::chrono::milliseconds timeout = {}) const {
+      amqp_envelope_t envelope;
+      struct timeval tval{
+        .tv_sec = mContext.timeout().count() / 1000,
+        .tv_usec = mContext.timeout().count() * 1000
+      };
+      amqp_frame_t frame;
 
-        // ... this code could be reduced, but there is a exception that might be treated when 'frame.payload.method.id == AMQP_BASIC_RETURN_METHOD'
-        if (AMQP_RESPONSE_NORMAL == ret.reply_type) {
-          auto msg = Envelope{{static_cast<char *>(envelope.message.body.bytes), envelope.message.body.len}}
-              .delivery_tag(envelope.delivery_tag)
-              .consumer_tag({static_cast<char *>(envelope.consumer_tag.bytes), envelope.consumer_tag.len})
-              .redelivered(envelope.redelivered)
-              .exchange({static_cast<char *>(envelope.exchange.bytes), envelope.exchange.len})
-              .routing_key({static_cast<char *>(envelope.routing_key.bytes), envelope.routing_key.len});
+      auto reply = amqp_consume_message(mState, &envelope, &tval, 0);
 
-          amqp_destroy_envelope(&envelope);
+      if (auto result = amqp_error(reply); result) {
+        throw std::runtime_error(result.value());
+      }
 
-          co_yield std::move(msg);
+      if (AMQP_RESPONSE_NORMAL == reply.reply_type) {
+        auto result = Envelope{{static_cast<char *>(envelope.message.body.bytes), envelope.message.body.len}}
+            .delivery_tag(envelope.delivery_tag)
+            .consumer_tag({static_cast<char *>(envelope.consumer_tag.bytes), envelope.consumer_tag.len})
+            .redelivered(envelope.redelivered)
+            .exchange({static_cast<char *>(envelope.exchange.bytes), envelope.exchange.len})
+            .routing_key({static_cast<char *>(envelope.routing_key.bytes), envelope.routing_key.len});
+
+        amqp_destroy_envelope(&envelope);
+
+        return result;
+      }
+
+      if (reply.reply_type == AMQP_RESPONSE_NONE) {
+        return {};
+      }
+
+      if (reply.reply_type == AMQP_RESPONSE_SERVER_EXCEPTION) {
+        if (reply.reply.id == AMQP_CONNECTION_CLOSE_METHOD) {
+          auto *context = static_cast<amqp_connection_close_t *>(reply.reply.decoded);
+          auto sv = std::string_view{static_cast<char *>(context->reply_text.bytes), context->reply_text.len};
+
+          throw std::runtime_error{std::format("server connection error {}, message: {}\n", context->reply_code, sv)};
         }
 
-        if (ret.reply_type == AMQP_RESPONSE_NONE) {
-          co_return;
+        if (reply.reply.id == AMQP_CHANNEL_CLOSE_METHOD) {
+          auto *context = static_cast<amqp_channel_close_t *>(reply.reply.decoded);
+          auto sv = std::string_view{static_cast<char *>(context->reply_text.bytes), context->reply_text.len};
+
+          throw std::runtime_error{std::format("server channel error {}, message: {}\n", context->reply_code, sv)};
         }
 
-        if (ret.reply_type == AMQP_RESPONSE_SERVER_EXCEPTION) {
-          if (ret.reply.id == AMQP_CONNECTION_CLOSE_METHOD) {
-            auto *context = static_cast<amqp_connection_close_t *>(ret.reply.decoded);
-            auto sv = std::string_view{static_cast<char *>(context->reply_text.bytes), context->reply_text.len};
+        throw std::runtime_error{std::format("unknown server error, method id {}", reply.reply.id)};
+      }
 
-            throw std::runtime_error{std::format("server connection error {}, message: {}\n", context->reply_code, sv)};
-          }
-
-          if (ret.reply.id == AMQP_CHANNEL_CLOSE_METHOD) {
-            auto *context = static_cast<amqp_channel_close_t *>(ret.reply.decoded);
-            auto sv = std::string_view{static_cast<char *>(context->reply_text.bytes), context->reply_text.len};
-
-            throw std::runtime_error{std::format("server channel error {}, message: {}\n", context->reply_code, sv)};
-          }
-
-          throw std::runtime_error{std::format("unknown server error, method id {}", ret.reply.id)};
+      if (reply.reply_type == AMQP_RESPONSE_LIBRARY_EXCEPTION) {
+        if (reply.library_error != AMQP_STATUS_UNEXPECTED_STATE) {
+          throw std::runtime_error{amqp_error_string2(reply.library_error)};
         }
 
-        if (ret.reply_type == AMQP_RESPONSE_LIBRARY_EXCEPTION) {
-          if (ret.library_error != AMQP_STATUS_UNEXPECTED_STATE) {
-            throw std::runtime_error{amqp_error_string2(ret.library_error)};
-          }
+        if (AMQP_STATUS_OK != amqp_simple_wait_frame(mState, &frame)) {
+          return {};
+        }
 
-          if (AMQP_STATUS_OK != amqp_simple_wait_frame(mState, &frame)) {
-            co_return;
-          }
+        if (frame.frame_type == AMQP_FRAME_METHOD) {
+          if (frame.payload.method.id == AMQP_BASIC_ACK_METHOD) {
+            // if we've turned publisher confirms on, and we've published a message here is a message being confirmed.
+          } else if (frame.payload.method.id == AMQP_BASIC_RETURN_METHOD) {
+            // if a published message couldn't be routed and the mandatory flag was set this is what would be
+            // returned. The message then needs to be read.
+            amqp_message_t message;
 
-          if (frame.frame_type == AMQP_FRAME_METHOD) {
-            if (frame.payload.method.id == AMQP_BASIC_ACK_METHOD) {
-              // if we've turned publisher confirms on, and we've published a message here is a message being confirmed.
-            } else if (frame.payload.method.id == AMQP_BASIC_RETURN_METHOD) {
-              // if a published message couldn't be routed and the mandatory flag was set this is what would be
-              // returned. The message then needs to be read.
-              amqp_message_t message;
-
-              if (auto result = amqp_error(amqp_read_message(mState, frame.channel, &message, 0)); result) {
-                throw std::runtime_error(result.value());
-              }
-
-              auto msg = Envelope{{static_cast<char *>(message.body.bytes), message.body.len}}.mandatory(true);
-
-              amqp_destroy_message(&message);
-
-              co_yield std::move(msg);
-            } else if (frame.payload.method.id == AMQP_CHANNEL_CLOSE_METHOD) {
-              // a channel.close method happens when a channel exception occurs, this can happen by publishing to an
-              // exchange that doesn't existfor example. In this case you would need to open another channel redeclare
-              // any queues that were declared auto-delete, and restart any consumers that were attached to the previous
-              // channel.
-              co_return;
-            } else if (frame.payload.method.id == AMQP_CONNECTION_CLOSE_METHOD) {
-              // a connection.close method happens when a connection exception occurs, this can happen by trying to
-              // use a channel that isn't open for example. In this case the whole connection must be restarted.
-              co_return;
-            } else {
-              throw std::runtime_error{std::format("an unexpected method '{}' was received", frame.payload.method.id)};
+            if (auto result = amqp_error(amqp_read_message(mState, frame.channel, &message, 0)); result) {
+              throw std::runtime_error(result.value());
             }
+
+            auto msg = Envelope{{static_cast<char *>(message.body.bytes), message.body.len}}.mandatory(true);
+
+            amqp_destroy_message(&message);
+
+            return std::move(msg);
+          } else if (frame.payload.method.id == AMQP_CHANNEL_CLOSE_METHOD) {
+            // a channel.close method happens when a channel exception occurs, this can happen by publishing to an
+            // exchange that doesn't existfor example. In this case you would need to open another channel redeclare
+            // any queues that were declared auto-delete, and restart any consumers that were attached to the previous
+            // channel.
+            return {};
+          } else if (frame.payload.method.id == AMQP_CONNECTION_CLOSE_METHOD) {
+            // a connection.close method happens when a connection exception occurs, this can happen by trying to
+            // use a channel that isn't open for example. In this case the whole connection must be restarted.
+            return {};
+          } else {
+            throw std::runtime_error{std::format("an unexpected method '{}' was received", frame.payload.method.id)};
           }
         }
       }
