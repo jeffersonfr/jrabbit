@@ -285,21 +285,64 @@ namespace jrabbit {
     Properties()
       : mProperties{} {}
 
-    Properties &content_type(std::string const &value) {
+    Properties &content_type(char const *value) {
       mProperties._flags = AMQP_BASIC_CONTENT_TYPE_FLAG;
-      mProperties.content_type = amqp_cstring_bytes(strdup("text/plain"));
+      mProperties.content_type = amqp_cstring_bytes(value);
 
       return *this;
     }
 
-    Properties &delivery_mode(DeliveryMode mode) {
+    Properties &encoding(char const *value) {
+      mProperties._flags = AMQP_BASIC_CONTENT_ENCODING_FLAG;
+      mProperties.content_encoding = amqp_cstring_bytes(value);
+
+      return *this;
+    }
+
+    Properties &delivery_mode(DeliveryMode value) {
       mProperties._flags = AMQP_BASIC_DELIVERY_MODE_FLAG;
 
-      if (mode == DeliveryMode::Persistent) {
+      if (value == DeliveryMode::NonPersistent) {
         mProperties.delivery_mode = 1;
       } else {
         mProperties.delivery_mode = 2;
       }
+
+      return *this;
+    }
+
+    Properties &priority(uint8_t value) {
+      mProperties._flags = AMQP_BASIC_PRIORITY_FLAG;
+      mProperties.priority = value;
+
+      return *this;
+    }
+
+    Properties &reply_to(char const *value) {
+      mProperties._flags = AMQP_BASIC_REPLY_TO_FLAG;
+      mProperties.reply_to = amqp_cstring_bytes(value);
+
+      return *this;
+    }
+
+    Properties &expiration(char const *value) {
+      mProperties._flags = AMQP_BASIC_EXPIRATION_FLAG;
+      mProperties.expiration = amqp_cstring_bytes(value);
+
+      return *this;
+    }
+
+    Properties &message_id(char const *value) {
+      mProperties._flags = AMQP_BASIC_MESSAGE_ID_FLAG;
+      mProperties.message_id = amqp_cstring_bytes(value);
+
+      return *this;
+    }
+
+    template <typename Clock>
+    Properties &timestamp(std::chrono::time_point<Clock> value) {
+      mProperties._flags = AMQP_BASIC_TIMESTAMP_FLAG;
+      mProperties.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(value.time_since_epoch()).count();
 
       return *this;
     }
