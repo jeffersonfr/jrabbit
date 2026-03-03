@@ -346,6 +346,17 @@ namespace jrabbit {
     Properties()
       : mProperties{} {}
 
+    explicit Properties(amqp_basic_properties_t properties)
+      : mProperties{properties} {}
+
+    [[nodiscard]] std::optional<std::string_view> content_type() const {
+      if (mProperties._flags & AMQP_BASIC_CONTENT_TYPE_FLAG) {
+        return std::string_view{static_cast<char *>(mProperties.content_type.bytes), mProperties.content_type.len};
+      }
+
+      return {};
+    }
+
     Properties &content_type(std::string_view value) {
       mProperties._flags = AMQP_BASIC_CONTENT_TYPE_FLAG;
       mProperties.content_type = amqp_bytes_t {
@@ -353,8 +364,15 @@ namespace jrabbit {
         .bytes = (void *)value.data()
       };
 
-
       return *this;
+    }
+
+    [[nodiscard]] std::optional<std::string_view> encoding() const {
+      if (mProperties._flags & AMQP_BASIC_CONTENT_ENCODING_FLAG) {
+        return std::string_view{static_cast<char *>(mProperties.content_encoding.bytes), mProperties.content_encoding.len};
+      }
+
+      return {};
     }
 
     Properties &encoding(std::string_view value) {
@@ -364,8 +382,15 @@ namespace jrabbit {
         .bytes = (void *)value.data()
       };
 
-
       return *this;
+    }
+
+    [[nodiscard]] std::optional<DeliveryMode> delivery_mode() const {
+      if (mProperties._flags & AMQP_BASIC_DELIVERY_MODE_FLAG) {
+        return (mProperties.delivery_mode == 1) ? DeliveryMode::NonPersistent : DeliveryMode::Persistent;
+      }
+
+      return {};
     }
 
     Properties &delivery_mode(DeliveryMode value) {
@@ -380,11 +405,27 @@ namespace jrabbit {
       return *this;
     }
 
+    [[nodiscard]] std::optional<uint8_t> priority() const {
+      if (mProperties._flags & AMQP_BASIC_PRIORITY_FLAG) {
+        return mProperties.priority;
+      }
+
+      return {};
+    }
+
     Properties &priority(uint8_t value) {
       mProperties._flags = AMQP_BASIC_PRIORITY_FLAG;
       mProperties.priority = value;
 
       return *this;
+    }
+
+    [[nodiscard]] std::optional<std::string_view> reply_to() const {
+      if (mProperties._flags & AMQP_BASIC_REPLY_TO_FLAG) {
+        return std::string_view{static_cast<char *>(mProperties.reply_to.bytes), mProperties.reply_to.len};
+      }
+
+      return {};
     }
 
     Properties &reply_to(std::string_view value) {
@@ -394,8 +435,15 @@ namespace jrabbit {
         .bytes = (void *)value.data()
       };
 
-
       return *this;
+    }
+
+    [[nodiscard]] std::optional<std::string_view> expiration() const {
+      if (mProperties._flags & AMQP_BASIC_EXPIRATION_FLAG) {
+        return std::string_view{static_cast<char *>(mProperties.expiration.bytes), mProperties.expiration.len};
+      }
+
+      return {};
     }
 
     Properties &expiration(std::string_view value) {
@@ -405,8 +453,15 @@ namespace jrabbit {
         .bytes = (void *)value.data()
       };
 
-
       return *this;
+    }
+
+    [[nodiscard]] std::optional<std::string_view> message_id() const {
+      if (mProperties._flags & AMQP_BASIC_MESSAGE_ID_FLAG) {
+        return std::string_view{static_cast<char *>(mProperties.message_id.bytes), mProperties.message_id.len};
+      }
+
+      return {};
     }
 
     Properties &message_id(std::string_view value) {
@@ -416,8 +471,69 @@ namespace jrabbit {
         .bytes = (void *)value.data()
       };
 
+      return *this;
+    }
+
+    [[nodiscard]] std::optional<std::string_view> application_id() const {
+      if (mProperties._flags & AMQP_BASIC_APP_ID_FLAG) {
+        return std::string_view{static_cast<char *>(mProperties.app_id.bytes), mProperties.app_id.len};
+      }
+
+      return {};
+    }
+
+    Properties &application_id(std::string_view value) {
+      mProperties._flags = AMQP_BASIC_APP_ID_FLAG;
+      mProperties.app_id = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
 
       return *this;
+    }
+
+    [[nodiscard]] std::optional<std::string_view> cluster_id() const {
+      if (mProperties._flags & AMQP_BASIC_CLUSTER_ID_FLAG) {
+        return std::string_view{static_cast<char *>(mProperties.cluster_id.bytes), mProperties.cluster_id.len};
+      }
+
+      return {};
+    }
+
+    Properties &cluster_id(std::string_view value) {
+      mProperties._flags = AMQP_BASIC_CLUSTER_ID_FLAG;
+      mProperties.cluster_id = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
+
+      return *this;
+    }
+
+    [[nodiscard]] std::optional<std::string_view> user_id() const {
+      if (mProperties._flags & AMQP_BASIC_USER_ID_FLAG) {
+        return std::string_view{static_cast<char *>(mProperties.user_id.bytes), mProperties.user_id.len};
+      }
+
+      return {};
+    }
+
+    Properties &user_id(std::string_view value) {
+      mProperties._flags = AMQP_BASIC_USER_ID_FLAG;
+      mProperties.user_id = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
+
+      return *this;
+    }
+
+    [[nodiscard]] std::optional<uint64_t> timestamp() const {
+      if (mProperties._flags & AMQP_BASIC_MESSAGE_ID_FLAG) {
+        return mProperties.timestamp;
+      }
+
+      return {};
     }
 
     Properties &timestamp(std::chrono::milliseconds value) {
@@ -427,11 +543,87 @@ namespace jrabbit {
       return *this;
     }
 
-    Properties &headers(Params params) {
-      mParams = std::move(params);
+    [[nodiscard]] std::optional<std::string_view> type() const {
+      if (mProperties._flags & AMQP_BASIC_TYPE_FLAG) {
+        return std::string_view{static_cast<char *>(mProperties.type.bytes), mProperties.type.len};
+      }
 
+      return {};
+    }
+
+    Properties &type(std::string_view value) {
+      mProperties._flags = AMQP_BASIC_TYPE_FLAG;
+      mProperties.type = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
+
+      return *this;
+    }
+
+    [[nodiscard]] std::optional<std::string_view> correlation_id() const {
+      if (mProperties._flags & AMQP_BASIC_CORRELATION_ID_FLAG) {
+        return std::string_view{static_cast<char *>(mProperties.correlation_id.bytes), mProperties.correlation_id.len};
+      }
+
+      return {};
+    }
+
+    Properties &correlation_id(std::string_view value) {
+      mProperties._flags = AMQP_BASIC_CORRELATION_ID_FLAG;
+      mProperties.correlation_id = amqp_bytes_t {
+        .len = value.length(),
+        .bytes = (void *)value.data()
+      };
+
+      return *this;
+    }
+
+    [[nodiscard]] std::optional<Params> headers() const {
+      if (mProperties._flags & AMQP_BASIC_HEADERS_FLAG) {
+        auto params = Params{};
+
+        for (int i=0; i<mProperties.headers.num_entries; i++) {
+          auto entry = mProperties.headers.entries[i];
+
+          if (entry.value.kind == AMQP_FIELD_KIND_VOID) {
+            params.put_void({static_cast<char *>(entry.key.bytes), entry.key.len});
+          } else if (entry.value.kind == AMQP_FIELD_KIND_BOOLEAN) {
+            params.put_bool({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.boolean);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_I8) {
+            params.put_int8({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i8);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_I16) {
+            params.put_int16({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i16);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_I32) {
+            params.put_int32({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i32);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_I64) {
+            params.put_int64({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i64);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_U8) {
+            params.put_uint8({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u8);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_U16) {
+            params.put_uint16({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u16);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_U32) {
+            params.put_uint32({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u32);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_U64) {
+            params.put_uint64({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u64);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_F32) {
+            params.put_float32({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.f32);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_F64) {
+            params.put_float64({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.f64);
+          } else if (entry.value.kind == AMQP_FIELD_KIND_UTF8) {
+            params.put_text({static_cast<char *>(entry.key.bytes), entry.key.len}, {static_cast<char *>(entry.value.value.bytes.bytes), entry.value.value.bytes.len});
+          } else if (entry.value.kind == AMQP_FIELD_KIND_BYTES) {
+            params.put_bytes({static_cast<char *>(entry.key.bytes), entry.key.len}, {static_cast<char *>(entry.value.value.bytes.bytes), entry.value.value.bytes.len});
+          }
+        }
+      }
+
+      return {};
+    }
+
+    Properties &headers(Params const &params) {
       mProperties._flags = AMQP_BASIC_HEADERS_FLAG;
-      mProperties.headers = mParams.get_params();
+      mProperties.headers = params.get_params();
 
       return *this;
     }
@@ -442,7 +634,6 @@ namespace jrabbit {
 
   private:
     amqp_basic_properties_t mProperties;
-    Params mParams;
   };
 
   struct Exchange {
@@ -669,55 +860,6 @@ namespace jrabbit {
 
   protected:
     Envelope() = default;
-
-    [[nodiscard]] static Properties get_properties(amqp_basic_properties_t const & properties) {
-      auto headers = Params{};
-
-      for (int i=0; i<properties.headers.num_entries; i++) {
-        auto entry = properties.headers.entries[i];
-
-        if (entry.value.kind == AMQP_FIELD_KIND_VOID) {
-          headers.put_void({static_cast<char *>(entry.key.bytes), entry.key.len});
-        } else if (entry.value.kind == AMQP_FIELD_KIND_BOOLEAN) {
-          headers.put_bool({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.boolean);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_I8) {
-          headers.put_int8({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i8);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_I16) {
-          headers.put_int16({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i16);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_I32) {
-          headers.put_int32({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i32);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_I64) {
-          headers.put_int64({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.i64);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_U8) {
-          headers.put_uint8({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u8);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_U16) {
-          headers.put_uint16({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u16);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_U32) {
-          headers.put_uint32({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u32);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_U64) {
-          headers.put_uint64({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.u64);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_F32) {
-          headers.put_float32({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.f32);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_F64) {
-          headers.put_float64({static_cast<char *>(entry.key.bytes), entry.key.len}, entry.value.value.f64);
-        } else if (entry.value.kind == AMQP_FIELD_KIND_UTF8) {
-          headers.put_text({static_cast<char *>(entry.key.bytes), entry.key.len}, {static_cast<char *>(entry.value.value.bytes.bytes), entry.value.value.bytes.len});
-        } else if (entry.value.kind == AMQP_FIELD_KIND_BYTES) {
-          headers.put_bytes({static_cast<char *>(entry.key.bytes), entry.key.len}, {static_cast<char *>(entry.value.value.bytes.bytes), entry.value.value.bytes.len});
-        }
-      }
-
-      return Properties{}
-        .priority(properties.priority)
-        .timestamp(std::chrono::milliseconds{properties.timestamp})
-        .delivery_mode((properties.delivery_mode == 2) ? Properties::DeliveryMode::Persistent : Properties::DeliveryMode::NonPersistent)
-        .content_type({static_cast<char *>(properties.content_type.bytes), properties.content_type.len})
-        .encoding({static_cast<char *>(properties.content_encoding.bytes), properties.content_encoding.len})
-        .expiration({static_cast<char *>(properties.expiration.bytes), properties.expiration.len})
-        .message_id({static_cast<char *>(properties.message_id.bytes), properties.message_id.len})
-        .reply_to({static_cast<char *>(properties.reply_to.bytes), properties.reply_to.len})
-        .headers(headers);
-    }
   };
 
   struct RabbitMqEnvelopeWrapper : public Envelope {
@@ -758,7 +900,7 @@ namespace jrabbit {
     }
 
     [[nodiscard]] Properties properties() const override {
-      return get_properties(mEnvelope.message.properties);
+      return Properties{mEnvelope.message.properties};
     }
 
   private:
@@ -820,7 +962,7 @@ namespace jrabbit {
     }
 
     [[nodiscard]] Properties properties() const override {
-      return get_properties(mMessage.properties);
+      return Properties{mMessage.properties};
     }
 
   private:
