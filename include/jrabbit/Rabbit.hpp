@@ -900,6 +900,8 @@ namespace jrabbit {
           }
         }
       }
+
+      return {};
     }
 
     void ack(Envelope const &envelope, bool multiple = {}) const {
