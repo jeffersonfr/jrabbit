@@ -640,7 +640,8 @@ namespace jrabbit {
     enum class Type {
       FANOUT,
       DIRECT,
-      TOPIC
+      TOPIC,
+      HEADERS,
     };
 
     Exchange() = default;
@@ -1017,6 +1018,8 @@ namespace jrabbit {
         exchangeType = "direct";
       } else if (exchange.type() == Exchange::Type::TOPIC) {
         exchangeType = "topic";
+      } else if (exchange.type() == Exchange::Type::HEADERS) {
+        exchangeType = "headers";
       }
 
       amqp_exchange_declare(mState, mChannel, amqp_cstring_bytes(exchange.name().data()),

@@ -254,8 +254,8 @@ TEST_F(jRabbitSuite, DeadLetterTest) {
 	auto q1 = jrabbit::Queue{"queue1"};
 	auto rk = jrabbit::RoutingKey{};
 	auto params = jrabbit::Params{}
-		.put_text("x-dead-letter-exchange", "dlx.exchange")
-		.put_text("x-dead-letter-routing-key", "dead");
+	.put_text("x-dead-letter-exchange", "dlx.exchange")
+	.put_text("x-dead-letter-routing-key", "dead");
 
 	channel->declare_exchange(ex);
 	channel->declare_queue(q1, params);
@@ -294,6 +294,65 @@ TEST_F(jRabbitSuite, DeadLetterTest) {
 	channel->delete_exchange(ex);
 	channel->delete_queue(dlx_q1);
 	channel->delete_exchange(dlx_ex);
+}
+
+TEST_F(jRabbitSuite, HeaderTest) {
+	auto context = jrabbit::Context{}.host(RabbitServer).port(RabbitPort).timeout(std::chrono::seconds{1});
+	auto state = jrabbit::RabbitMq::connect(context);
+
+	if (!state) {
+		std::println(std::cout, "Error: {}", state.error());
+
+		FAIL();
+	}
+
+	auto channel = state->open(1);
+
+	// normal queue
+	auto ex = jrabbit::Exchange{"exchange1"}.type(jrabbit::Exchange::Type::HEADERS).durable(true);
+	auto q1 = jrabbit::Queue{"queue1"}.durable(true);
+	auto rk = jrabbit::RoutingKey{"teste"};
+	auto params = jrabbit::Params{}
+		.put_text("x-match", "all")
+		.put_text("format", "pdf")
+		.put_text("type", "report");
+
+	channel->declare_exchange(ex);
+	channel->declare_queue(q1);
+
+	channel->bind(ex, q1, rk, params);
+
+	// -- send messsage
+	channel->publish(ex, jrabbit::Message{"testando mensagem 1 ..."}, rk, jrabbit::Properties{}
+		.content_type("application/json")
+		.delivery_mode(jrabbit::Properties::DeliveryMode::Persistent)
+		.headers(jrabbit::Params{}
+			.put_text("format", "pdf")
+			.put_text("type", "log")));
+
+	channel->publish(ex, jrabbit::Message{"testando mensagem 2 ..."}, rk, jrabbit::Properties{}
+	.content_type("application/json")
+	.delivery_mode(jrabbit::Properties::DeliveryMode::Persistent)
+	.headers(jrabbit::Params{}
+		.put_text("format", "pdf")
+		.put_text("type", "report")));
+
+	try {
+		for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1})) {
+			std::cout << "Filtered: " << e->data() << std::endl;
+
+			break;
+		}
+	} catch (std::runtime_error &e) {
+		std::println(std::cout, "Error: {}", e.what());
+	}
+
+	// -- unbinding objects
+	channel->unbind(ex, q1);
+
+	// -- delete objects
+	channel->delete_queue(q1);
+	channel->delete_exchange(ex);
 }
 
 int main(int argc, char *argv[]) {
