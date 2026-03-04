@@ -55,7 +55,7 @@ TEST_F(jRabbitSuite, ProceduralTest) {
 	channel->publish(ex, jrabbit::Message{"testando mensagem 1 ..."});
 
 	try {
-		for (auto const &e: channel->consume(q1, jrabbit::RoutingKey{}, std::chrono::seconds{1})) {
+		for (auto const &e: channel->consume(q1, rk, std::chrono::seconds{1})) {
 			std::cout << "MSG: " << e->data() << std::endl;
 
 			break;

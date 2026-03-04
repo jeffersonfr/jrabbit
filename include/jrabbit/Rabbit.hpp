@@ -12,94 +12,6 @@
 #include <rabbitmq-c/tcp_socket.h>
 
 namespace jrabbit {
-  struct Context {
-    Context() = default;
-
-    Context &host(std::string const &value) {
-      mHost = value;
-
-      return *this;
-    }
-
-    [[nodiscard]] std::string const &host() const {
-      return mHost;
-    }
-
-    Context &port(int value) {
-      mPort = value;
-
-      return *this;
-    }
-
-    [[nodiscard]] int port() const {
-      return mPort;
-    }
-
-    Context &timeout(std::chrono::milliseconds value) {
-      mTimeout = value;
-
-      return *this;
-    }
-
-    [[nodiscard]] std::chrono::milliseconds timeout() const {
-      return mTimeout;
-    }
-
-    Context &user(std::string const &value) {
-      mUser = value;
-
-      return *this;
-    }
-
-    [[nodiscard]] std::string const &user() const {
-      return mUser;
-    }
-
-    Context &pass(std::string const &value) {
-      mPass = value;
-
-      return *this;
-    }
-
-    [[nodiscard]] std::string const &pass() const {
-      return mPass;
-    }
-
-    Context &virtual_host(std::string const &value) {
-      mVirtualHost = value;
-
-      return *this;
-    }
-
-    [[nodiscard]] std::string const &virtual_host() const {
-      return mVirtualHost;
-    }
-
-    Context &frame(int value) {
-      mFrame = value;
-
-      // [4096 .. 2 ^ 31 - 1]
-      if (mFrame < 4096 or mFrame > 131072) {
-        throw std::runtime_error{"invalid frame size range"};
-      }
-
-      return *this;
-    }
-
-    [[nodiscard]] int frame() const {
-      return mFrame;
-    }
-
-  private:
-    std::string mHost{"localhost"};
-    std::string mUser{"guest"};
-    std::string mPass{"guest"};
-    std::string mVirtualHost{"/"};
-    std::chrono::milliseconds mTimeout{1000};
-    int mPort{5672};
-    int mFrame{4096};
-  };
-
   struct Params {
     friend class Channel;
 
@@ -634,6 +546,105 @@ namespace jrabbit {
 
   private:
     amqp_basic_properties_t mProperties;
+  };
+
+  struct Context {
+    Context() = default;
+
+    Context &host(std::string const &value) {
+      mHost = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] std::string const &host() const {
+      return mHost;
+    }
+
+    Context &port(int value) {
+      mPort = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] int port() const {
+      return mPort;
+    }
+
+    Context &timeout(std::chrono::milliseconds value) {
+      mTimeout = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] std::chrono::milliseconds timeout() const {
+      return mTimeout;
+    }
+
+    Context &user(std::string const &value) {
+      mUser = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] std::string const &user() const {
+      return mUser;
+    }
+
+    Context &pass(std::string const &value) {
+      mPass = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] std::string const &pass() const {
+      return mPass;
+    }
+
+    Context &virtual_host(std::string const &value) {
+      mVirtualHost = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] std::string const &virtual_host() const {
+      return mVirtualHost;
+    }
+
+    Context &frame(int value) {
+      mFrame = value;
+
+      // [4096 .. 2 ^ 31 - 1]
+      if (mFrame < 4096 or mFrame > AMQP_DEFAULT_FRAME_SIZE) {
+        throw std::runtime_error{"invalid frame size range"};
+      }
+
+      return *this;
+    }
+
+    [[nodiscard]] int frame() const {
+      return mFrame;
+    }
+
+    Context &properties(Params params) {
+      mParams = params;
+
+      return *this;
+    }
+
+    [[nodiscard]] std::optional<Params> properties() {
+      return mParams;
+    }
+
+  private:
+    std::optional<Params> mParams;
+    std::string mHost{"localhost"};
+    std::string mUser{"guest"};
+    std::string mPass{"guest"};
+    std::string mVirtualHost{"/"};
+    std::chrono::milliseconds mTimeout{1000};
+    int mPort{5672};
+    int mFrame{4096};
   };
 
   struct Exchange {
@@ -1382,6 +1393,22 @@ namespace jrabbit {
       return std::unique_ptr<Channel>(new Channel{mContext, mState, channel});
     }
 
+    [[nodiscard]] static std::string get_version() {
+      return {amqp_version()};
+    }
+
+    [[nodiscard]] int get_max_channels() const {
+      return amqp_get_channel_max(mState);
+    }
+
+    [[nodiscard]] int get_max_frame_size() const {
+      return amqp_get_frame_max(mState);
+    }
+
+    [[nodiscard]] std::chrono::seconds get_heartbeat_timeout() const {
+      return std::chrono::seconds{amqp_get_heartbeat(mState)};
+    }
+
   private:
     Context mContext;
     amqp_connection_state_t mState{nullptr};
@@ -1419,13 +1446,26 @@ namespace jrabbit {
         }
       }
 
-      if (auto result = amqp_error(amqp_login(mState, mContext.virtual_host().data(), 0, mContext.frame(), 0,
-                                              AMQP_SASL_METHOD_PLAIN, mContext.user().data(),
-                                              mContext.pass().data())); result) {
-        amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
-        amqp_destroy_connection(mState);
+      if (!mContext.properties()) {
+        if (auto result = amqp_error(amqp_login(mState, mContext.virtual_host().data(), 0, mContext.frame(), 0,
+                                                AMQP_SASL_METHOD_PLAIN, mContext.user().data(),
+                                                mContext.pass().data())); result) {
+          amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
+          amqp_destroy_connection(mState);
 
-        throw std::runtime_error{result.value()};
+          throw std::runtime_error{result.value()};
+                                                }
+      } else {
+        auto params = mContext.properties()->get_params();
+
+        if (auto result = amqp_error(amqp_login_with_properties(mState, mContext.virtual_host().data(), 0, mContext.frame(), 0,
+                                                &params, AMQP_SASL_METHOD_PLAIN, mContext.user().data(),
+                                                mContext.pass().data())); result) {
+          amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
+          amqp_destroy_connection(mState);
+
+          throw std::runtime_error{result.value()};
+        }
       }
     }
   };
