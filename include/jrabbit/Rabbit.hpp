@@ -11,6 +11,8 @@
 #include <rabbitmq-c/amqp.h>
 #include <rabbitmq-c/tcp_socket.h>
 
+#include "rabbitmq-c/ssl_socket.h"
+
 namespace jrabbit {
   struct Params {
     friend class Channel;
@@ -551,6 +553,56 @@ namespace jrabbit {
   struct Context {
     Context() = default;
 
+    Context &ssl_cacert(std::string const &value) {
+      mSslCacert = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] std::string const &ssl_cacert() const {
+      return mSslCacert;
+    }
+
+    Context &ssl_engine(std::string const &value) {
+      mSslEngine = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] std::string const &ssl_engine() const {
+      return mSslEngine;
+    }
+
+    Context &ssl_verify_peer(bool value) {
+      mSslVerifyPeer = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] bool ssl_verify_peer() const {
+      return mSslVerifyPeer;
+    }
+
+    Context &ssl_verify_hostname(bool value) {
+      mSslVerifyHostname = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] bool ssl_verify_hostname() const {
+      return mSslVerifyHostname;
+    }
+
+    Context &ssl_keys(std::pair<std::string, std::string> value) {
+      mSslKeys = value;
+
+      return *this;
+    }
+
+    [[nodiscard]] std::optional<std::pair<std::string, std::string>> ssl_keys() const {
+      return mSslKeys;
+    }
+
     Context &host(std::string const &value) {
       mHost = value;
 
@@ -637,6 +689,11 @@ namespace jrabbit {
     }
 
   private:
+    std::string mSslCacert;
+    std::string mSslEngine;
+    bool mSslVerifyPeer;
+    bool mSslVerifyHostname;
+    std::optional<std::pair<std::string, std::string>> mSslKeys;
     std::optional<Params> mParams;
     std::string mHost{"localhost"};
     std::string mUser{"guest"};
@@ -1310,6 +1367,48 @@ namespace jrabbit {
       amqp_maybe_release_buffers_on_channel(mState, mChannel);
     }
 
+    void confirm_select() const {
+      amqp_confirm_select(mState, mChannel);
+
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
+        throw std::runtime_error(result.value());
+      }
+    }
+
+    [[nodiscard]] std::pair<std::uint64_t, std::string> wait_ack(std::chrono::microseconds ms) const {
+      amqp_publisher_confirm_t confirm;
+      amqp_rpc_reply_t ret;
+
+      amqp_maybe_release_buffers(mState);
+
+      if (ms.count() > 0) {
+        struct timeval timeout{
+          .tv_sec = mContext.timeout().count() / 1000,
+          .tv_usec = mContext.timeout().count() * 1000
+        };
+
+        ret = amqp_publisher_confirm_wait(mState, &timeout, &confirm);
+      } else {
+        ret = amqp_publisher_confirm_wait(mState, nullptr, &confirm);
+      }
+
+      if (auto result = amqp_error(ret); result) {
+        throw std::runtime_error(result.value());
+      }
+
+      std::string method = amqp_method_name(confirm.method);
+
+      if (confirm.method == AMQP_BASIC_ACK_METHOD) {
+        return std::pair{confirm.payload.ack.delivery_tag, method};
+      } else if (confirm.method == AMQP_BASIC_NACK_METHOD) {
+        return std::pair{confirm.payload.ack.delivery_tag, method};
+      } else if (confirm.method == AMQP_BASIC_REJECT_METHOD) {
+        return std::pair{confirm.payload.ack.delivery_tag, method};
+      } else {
+        throw std::runtime_error{std::format("unexpected method {}", method)};
+      }
+    }
+
     bool transaction(std::function<void(Channel &)> const &callback) {
       amqp_tx_select(mState, mChannel);
       amqp_get_rpc_reply(mState);
@@ -1417,12 +1516,44 @@ namespace jrabbit {
     explicit RabbitMq(Context context)
       : mContext(std::move(context)) {
       mState = amqp_new_connection();
-      mSocket = amqp_tcp_socket_new(mState);
+
+      auto cacert = mContext.ssl_cacert();
+
+      if (!cacert.empty()) {
+        mSocket = amqp_ssl_socket_new(mState);
+      } else {
+        mSocket = amqp_tcp_socket_new(mState);
+      }
 
       if (!mSocket) {
         amqp_connection_close(mState, AMQP_REPLY_SUCCESS);
 
         throw std::runtime_error{"unable to initialize connection"};
+      }
+
+      if (!cacert.empty()) {
+        amqp_ssl_socket_set_verify_peer(mSocket, 0);
+        amqp_ssl_socket_set_verify_hostname(mSocket, 0);
+
+        amqp_ssl_socket_set_cacert(mSocket, cacert.c_str());
+
+        if (auto engine = mContext.ssl_engine(); !engine.empty()) {
+          amqp_set_ssl_engine(engine.c_str());
+        }
+
+        if (mContext.ssl_verify_peer()) {
+          amqp_ssl_socket_set_verify_peer(mSocket, 1);
+        }
+
+        if (mContext.ssl_verify_hostname()) {
+          amqp_ssl_socket_set_verify_hostname(mSocket, 1);
+        }
+
+        if (auto keys = mContext.ssl_keys(); keys.has_value()) {
+          auto key_pair = keys.value();
+
+          amqp_ssl_socket_set_key(mSocket, key_pair.first.c_str(), key_pair.second.c_str());
+        }
       }
 
       if (mContext.timeout().count() > 0) {
