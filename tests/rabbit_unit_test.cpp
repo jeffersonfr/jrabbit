@@ -657,7 +657,7 @@ TEST_F(jRabbitSuite, DeadLetterTest) {
   channel->bind(dlx_ex, dlx_q1, dlx_rk);
 
   // normal queue
-  auto ex = jrabbit::Exchange{"exchange1"}.type(jrabbit::Exchange::Type::FANOUT);
+  auto ex = jrabbit::Exchange{"exchange1"}.type(jrabbit::Exchange::Type::DIRECT);
   auto q1 = jrabbit::Queue{"queue1"};
   auto rk = jrabbit::RoutingKey{};
   auto params = jrabbit::Params{}

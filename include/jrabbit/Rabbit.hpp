@@ -6,6 +6,7 @@
 #include <functional>
 #include <iostream>
 #include <string_view>
+#include <unistd.h>
 
 #include <rabbitmq-c/amqp.h>
 #include <rabbitmq-c/tcp_socket.h>
@@ -16,7 +17,7 @@ namespace jrabbit {
   struct Params {
     friend class Channel;
 
-    Params() = default;
+    constexpr Params() = default;
 
     Params &put_void(std::string_view key) {
       ::amqp_table_entry_t entry;
@@ -1096,8 +1097,8 @@ namespace jrabbit {
         exchangeType = "headers";
       }
 
-      amqp_exchange_declare(mState, mChannel, amqp_cstring_bytes(exchange.name().data()),
-                            amqp_cstring_bytes(exchangeType.data()), exchange.passive() ? 1 : 0,
+      amqp_exchange_declare(mState, mChannel, amqp_string_view_bytes(exchange.name()),
+                            amqp_string_view_bytes(exchangeType), exchange.passive() ? 1 : 0,
                             exchange.durable() ? 1 : 0, exchange.auto_delete() ? 1 : 0, exchange.internal() ? 1 : 0,
                             params.get_params());
 
@@ -1107,7 +1108,7 @@ namespace jrabbit {
     }
 
     void delete_exchange(Exchange const &exchange, bool ifUnused = false) const {
-      amqp_exchange_delete(mState, mChannel, amqp_cstring_bytes(exchange.name().data()), ifUnused);
+      amqp_exchange_delete(mState, mChannel, amqp_string_view_bytes(exchange.name()), ifUnused);
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
@@ -1115,7 +1116,7 @@ namespace jrabbit {
     }
 
     void declare_queue(Queue const &queue, Params const &params = StaticParams) const {
-      amqp_queue_declare(mState, mChannel, amqp_cstring_bytes(queue.name().data()),
+      amqp_queue_declare(mState, mChannel, amqp_string_view_bytes(queue.name()),
                          queue.passive() ? 1 : 0,
                          queue.durable() ? 1 : 0, queue.exclusive() ? 1 : 0, queue.auto_delete() ? 1 : 0,
                          params.get_params());
@@ -1128,7 +1129,7 @@ namespace jrabbit {
     }
 
     void delete_queue(Queue const &queue, bool ifUnused = false, bool ifEmpty = false) const {
-      amqp_queue_delete(mState, mChannel, amqp_cstring_bytes(queue.name().data()), ifUnused ? 1 : 0,
+      amqp_queue_delete(mState, mChannel, amqp_string_view_bytes(queue.name()), ifUnused ? 1 : 0,
                         ifEmpty ? 1 : 0);
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
@@ -1137,17 +1138,17 @@ namespace jrabbit {
     }
 
     void purge_queue(Queue const &queue) const {
-      amqp_queue_purge(mState, mChannel, amqp_cstring_bytes(queue.name().data()));
+      amqp_queue_purge(mState, mChannel, amqp_string_view_bytes(queue.name()));
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
       }
     }
 
-    void bind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {},
+    void bind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = StaticRoutingKey,
               Params const &params = StaticParams) const {
-      amqp_queue_bind(mState, mChannel, amqp_cstring_bytes(queue.name().data()),
-                      amqp_cstring_bytes(exchange.name().data()), amqp_cstring_bytes(routingKey.name().data()),
+      amqp_queue_bind(mState, mChannel, amqp_string_view_bytes(queue.name()),
+                      amqp_string_view_bytes(exchange.name()), amqp_string_view_bytes(routingKey.name()),
                       params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
@@ -1155,10 +1156,10 @@ namespace jrabbit {
       }
     }
 
-    void unbind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = {},
+    void unbind(Exchange const &exchange, Queue const &queue, RoutingKey const &routingKey = StaticRoutingKey,
                 Params const &params = StaticParams) const {
-      amqp_queue_unbind(mState, mChannel, amqp_cstring_bytes(queue.name().data()),
-                        amqp_cstring_bytes(exchange.name().data()), amqp_cstring_bytes(routingKey.name().data()),
+      amqp_queue_unbind(mState, mChannel, amqp_string_view_bytes(queue.name()),
+                        amqp_string_view_bytes(exchange.name()), amqp_string_view_bytes(routingKey.name()),
                         params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
@@ -1166,12 +1167,12 @@ namespace jrabbit {
       }
     }
 
-    void publish(Exchange const &exchange, Message const &message, RoutingKey const &routingKey = {},
+    void publish(Exchange const &exchange, Message const &message, RoutingKey const &routingKey = StaticRoutingKey,
                  Properties const &properties = {}) const {
-      if (auto result = amqp_basic_publish(mState, 1, amqp_cstring_bytes(exchange.name().data()),
-                                           amqp_cstring_bytes(routingKey.name().data()), message.mandatory(),
+      if (auto result = amqp_basic_publish(mState, 1, amqp_string_view_bytes(exchange.name()),
+                                           amqp_string_view_bytes(routingKey.name()), message.mandatory(),
                                            message.immediate(), properties.get_properties(),
-                                           amqp_cstring_bytes(message.data().data())); result != AMQP_STATUS_OK) {
+                                           amqp_string_view_bytes(message.data())); result != AMQP_STATUS_OK) {
         throw std::runtime_error{amqp_error_string2(result)};
       }
 
@@ -1191,8 +1192,27 @@ namespace jrabbit {
       amqp_maybe_release_buffers_on_channel(mState, mChannel);
     }
 
+    /*
+    [[nodiscard]] bool wait_for_frame(std::chrono::milliseconds ms) const {
+      if (amqp_frames_enqueued(mState) == AMQP_STATUS_OK and amqp_data_in_buffer(mState) == AMQP_STATUS_OK) {
+        amqp_frame_t frame;
+
+        amqp_maybe_release_buffers(mState);
+
+        struct timeval timeout{
+          .tv_sec = mContext.timeout().count() / 1000,
+          .tv_usec = mContext.timeout().count() * 1000
+        };
+
+        return amqp_simple_wait_frame_noblock(mState, &frame, &timeout) == AMQP_STATUS_OK;
+      }
+
+      return false;
+    }
+    */
+
     [[nodiscard]] std::optional<std::unique_ptr<Envelope> > get(Queue const &queue, bool noAck = {true}) const {
-      amqp_rpc_reply_t reply = amqp_basic_get(mState, mChannel, amqp_cstring_bytes(queue.name().data()), noAck ? 1 : 0);
+      amqp_rpc_reply_t reply = amqp_basic_get(mState, mChannel, amqp_string_view_bytes(queue.name()), noAck ? 1 : 0);
 
       if (auto result = amqp_error(reply); result) {
         throw std::runtime_error(result.value());
@@ -1221,8 +1241,8 @@ namespace jrabbit {
     void subscribe(std::function<bool(std::unique_ptr<Envelope>)> callback, Queue const &queue, std::string_view consumerTag,
                  std::chrono::milliseconds timeout = {}, bool noLocal = {},
                  bool noAck = {true}, bool exclusive = {}, Params const &params = StaticParams) const {
-      amqp_basic_consume(mState, mChannel, amqp_cstring_bytes(queue.name().data()),
-                         amqp_cstring_bytes(consumerTag.data()), noLocal ? 1 : 0, noAck ? 1 : 0,
+      amqp_basic_consume(mState, mChannel, amqp_string_view_bytes(queue.name()),
+                         amqp_string_view_bytes(consumerTag), noLocal ? 1 : 0, noAck ? 1 : 0,
                          exclusive ? 1 : 0, params.get_params());
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
@@ -1284,7 +1304,7 @@ namespace jrabbit {
     }
 
     void cancel(const std::string_view consumerTag) const {
-      amqp_basic_cancel(mState, mChannel, amqp_cstring_bytes(consumerTag.data()));
+      amqp_basic_cancel(mState, mChannel, amqp_string_view_bytes(consumerTag));
 
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error(result.value());
@@ -1361,7 +1381,8 @@ namespace jrabbit {
     }
 
   private:
-    inline static const auto StaticParams = Params{};
+    inline static constexpr auto StaticParams = Params{};
+    inline static constexpr auto StaticRoutingKey = RoutingKey{};
 
     Context &mContext;
     amqp_connection_state_t mState{};
@@ -1378,6 +1399,15 @@ namespace jrabbit {
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error{result.value()};
       }
+    }
+
+    [[nodiscard]] static amqp_bytes_t amqp_string_view_bytes(std::string_view value) {
+      amqp_bytes_t result;
+
+      result.len = value.size();
+      result.bytes = (void *)value.data();
+
+      return result;
     }
 
     [[nodiscard]] std::optional<std::unique_ptr<Envelope> > consume(std::chrono::milliseconds timeout = {}) const {
