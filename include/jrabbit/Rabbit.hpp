@@ -6,6 +6,7 @@
 #include <functional>
 #include <iostream>
 #include <string_view>
+#include <generator>
 #include <unistd.h>
 
 #include <rabbitmq-c/amqp.h>
@@ -1184,6 +1185,26 @@ namespace jrabbit {
         if (auto result = consume(timeout); result) {
           if ((consumerTag.empty() or result.value()->consumer_tag() == consumerTag) && !callback(std::move(result.value()))) {
             return;
+          }
+        }
+      }
+    }
+
+    [[nodiscard]] std::generator<std::unique_ptr<Envelope>> subscribe(int count, Queue const &queue, std::string_view consumerTag,
+             std::chrono::milliseconds timeout = {}, bool noLocal = {},
+             bool noAck = {true}, bool exclusive = {}, Params const &params = StaticParams) const {
+      amqp_basic_consume(mState, mChannel, amqp_string_view_bytes(queue.name()),
+                         amqp_string_view_bytes(consumerTag), noLocal ? 1 : 0, noAck ? 1 : 0,
+                         exclusive ? 1 : 0, params.get_params());
+
+      if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
+        throw std::runtime_error(result.value());
+      }
+
+      while (count-- > 0) {
+        if (auto result = consume(timeout); result) {
+          if ((consumerTag.empty() or result.value()->consumer_tag() == consumerTag)) {
+            co_yield std::move(result.value());
           }
         }
       }

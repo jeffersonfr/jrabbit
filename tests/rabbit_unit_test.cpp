@@ -89,7 +89,7 @@ TEST_F(jRabbitSuite, ExchangeTest) {
   ASSERT_EQ(exchange.type(), jrabbit::Exchange::Type::DIRECT);
 }
 
-TEST_F(jRabbitSuite, LinearTest) {
+TEST_F(jRabbitSuite, CallbackTest) {
   auto context = jrabbit::Context{}.host(RabbitHost).port(RabbitPort).timeout(std::chrono::seconds{1});
   auto state = jrabbit::RabbitMq::connect(context);
 
@@ -140,7 +140,56 @@ TEST_F(jRabbitSuite, LinearTest) {
   ASSERT_EQ(result, golden);
 }
 
-TEST_F(jRabbitSuite, FunctionalTest) {
+TEST_F(jRabbitSuite, GeneratorTest) {
+  auto context = jrabbit::Context{}.host(RabbitHost).port(RabbitPort).timeout(std::chrono::seconds{1});
+  auto state = jrabbit::RabbitMq::connect(context);
+
+  if (!state) {
+    std::println(std::cout, "Error: {}", state.error());
+
+    FAIL();
+  }
+
+  auto channel = state->open(1);
+
+  auto ex = jrabbit::Exchange{"exchange1"}.type(jrabbit::Exchange::Type::FANOUT);
+  auto q1 = jrabbit::Queue{"queue1"};
+  auto rk = jrabbit::RoutingKey{};
+
+  // -- creating objects
+  channel->declare_exchange(ex);
+  channel->declare_queue(q1);
+
+  // -- binding objects
+  channel->bind(ex, q1, rk);
+
+  // -- send messsage
+  channel->publish(ex, jrabbit::Message{"message 1 ..."});
+
+  std::vector<std::string> result, golden{
+    "message 1 ...",
+  };
+
+  try {
+    for (auto const &envelope : channel->subscribe(1, q1, "tag1", std::chrono::seconds{1})) {
+      result.push_back(std::string{envelope->data()});
+    }
+    channel->cancel("tag1");
+  } catch (std::runtime_error &e) {
+    std::println(std::cout, "Error: {}", e.what());
+  }
+
+  // -- unbinding objects
+  channel->unbind(ex, q1);
+
+  // -- delete objects
+  channel->delete_queue(q1);
+  channel->delete_exchange(ex);
+
+  ASSERT_EQ(result, golden);
+}
+
+TEST_F(jRabbitSuite, MonadTest) {
   auto result = jrabbit::RabbitMq::connect(
         jrabbit::Context{}.host(RabbitHost).port(RabbitPort).timeout(std::chrono::seconds{1}))
       .and_then([](jrabbit::RabbitMq mq) -> std::expected<jrabbit::RabbitMq, std::string> {
