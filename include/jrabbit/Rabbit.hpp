@@ -14,6 +14,15 @@
 #include "rabbitmq-c/ssl_socket.h"
 
 namespace jrabbit {
+  [[nodiscard]] static amqp_bytes_t amqp_string_view_bytes(std::string_view value) {
+    amqp_bytes_t result;
+
+    result.len = value.size();
+    result.bytes = (void *)value.data();
+
+    return result;
+  }
+
   struct Params {
     friend class Channel;
 
@@ -22,10 +31,7 @@ namespace jrabbit {
     Params &put_void(std::string_view key) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_VOID;
 
       mParams.push_back(entry);
@@ -36,10 +42,7 @@ namespace jrabbit {
     Params &put_bool(std::string_view key, bool value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_BOOLEAN;
       entry.value.value.boolean = value;
 
@@ -51,10 +54,7 @@ namespace jrabbit {
     Params &put_int8(std::string_view key, int8_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_I8;
       entry.value.value.i8 = value;
 
@@ -66,10 +66,7 @@ namespace jrabbit {
     Params &put_int16(std::string_view key, int16_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_I16;
       entry.value.value.i16 = value;
 
@@ -81,10 +78,7 @@ namespace jrabbit {
     Params &put_int32(std::string_view key, int32_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_I32;
       entry.value.value.i32 = value;
 
@@ -96,10 +90,7 @@ namespace jrabbit {
     Params &put_int64(std::string_view key, int64_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_I64;
       entry.value.value.i64 = value;
 
@@ -111,10 +102,7 @@ namespace jrabbit {
     Params &put_uint8(std::string_view key, uint8_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_U8;
       entry.value.value.u8 = value;
 
@@ -126,10 +114,7 @@ namespace jrabbit {
     Params &put_uint16(std::string_view key, uint16_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_U16;
       entry.value.value.u16 = value;
 
@@ -141,10 +126,7 @@ namespace jrabbit {
     Params &put_uint32(std::string_view key, uint32_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_U32;
       entry.value.value.u32 = value;
 
@@ -156,10 +138,7 @@ namespace jrabbit {
     Params &put_uint64(std::string_view key, uint64_t value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_U64;
       entry.value.value.u64 = value;
 
@@ -171,10 +150,7 @@ namespace jrabbit {
     Params &put_float32(std::string_view key, float value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_F32;
       entry.value.value.f32 = value;
 
@@ -186,10 +162,7 @@ namespace jrabbit {
     Params &put_float64(std::string_view key, double value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_F64;
       entry.value.value.f64 = value;
 
@@ -201,15 +174,9 @@ namespace jrabbit {
     Params &put_text(std::string_view key, std::string_view value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_UTF8;
-      entry.value.value.bytes = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      entry.value.value.bytes = amqp_string_view_bytes(value);
 
       mParams.push_back(entry);
 
@@ -219,15 +186,9 @@ namespace jrabbit {
     Params &put_bytes(std::string_view key, std::string_view value) {
       ::amqp_table_entry_t entry;
 
-      entry.key = amqp_bytes_t{
-        .len = key.length(),
-        .bytes = (void *) key.data()
-      };
+      entry.key = amqp_string_view_bytes(key);
       entry.value.kind = AMQP_FIELD_KIND_BYTES;
-      entry.value.value.bytes = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      entry.value.value.bytes = amqp_string_view_bytes(value);
 
       mParams.push_back(entry);
 
@@ -275,10 +236,7 @@ namespace jrabbit {
 
     Properties &content_type(std::string_view value) {
       mProperties._flags = AMQP_BASIC_CONTENT_TYPE_FLAG;
-      mProperties.content_type = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      mProperties.content_type = amqp_string_view_bytes(value);
 
       return *this;
     }
@@ -295,10 +253,7 @@ namespace jrabbit {
 
     Properties &encoding(std::string_view value) {
       mProperties._flags = AMQP_BASIC_CONTENT_ENCODING_FLAG;
-      mProperties.content_encoding = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      mProperties.content_encoding = amqp_string_view_bytes(value);
 
       return *this;
     }
@@ -348,10 +303,7 @@ namespace jrabbit {
 
     Properties &reply_to(std::string_view value) {
       mProperties._flags = AMQP_BASIC_REPLY_TO_FLAG;
-      mProperties.reply_to = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      mProperties.reply_to = amqp_string_view_bytes(value);
 
       return *this;
     }
@@ -366,10 +318,7 @@ namespace jrabbit {
 
     Properties &expiration(std::string_view value) {
       mProperties._flags = AMQP_BASIC_EXPIRATION_FLAG;
-      mProperties.expiration = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      mProperties.expiration = amqp_string_view_bytes(value);
 
       return *this;
     }
@@ -384,10 +333,7 @@ namespace jrabbit {
 
     Properties &message_id(std::string_view value) {
       mProperties._flags = AMQP_BASIC_MESSAGE_ID_FLAG;
-      mProperties.message_id = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      mProperties.message_id = amqp_string_view_bytes(value);
 
       return *this;
     }
@@ -402,10 +348,7 @@ namespace jrabbit {
 
     Properties &application_id(std::string_view value) {
       mProperties._flags = AMQP_BASIC_APP_ID_FLAG;
-      mProperties.app_id = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      mProperties.app_id = amqp_string_view_bytes(value);
 
       return *this;
     }
@@ -420,10 +363,7 @@ namespace jrabbit {
 
     Properties &cluster_id(std::string_view value) {
       mProperties._flags = AMQP_BASIC_CLUSTER_ID_FLAG;
-      mProperties.cluster_id = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      mProperties.cluster_id = amqp_string_view_bytes(value);
 
       return *this;
     }
@@ -438,10 +378,7 @@ namespace jrabbit {
 
     Properties &user_id(std::string_view value) {
       mProperties._flags = AMQP_BASIC_USER_ID_FLAG;
-      mProperties.user_id = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      mProperties.user_id = amqp_string_view_bytes(value);
 
       return *this;
     }
@@ -471,10 +408,7 @@ namespace jrabbit {
 
     Properties &type(std::string_view value) {
       mProperties._flags = AMQP_BASIC_TYPE_FLAG;
-      mProperties.type = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      mProperties.type = amqp_string_view_bytes(value);
 
       return *this;
     }
@@ -489,10 +423,7 @@ namespace jrabbit {
 
     Properties &correlation_id(std::string_view value) {
       mProperties._flags = AMQP_BASIC_CORRELATION_ID_FLAG;
-      mProperties.correlation_id = amqp_bytes_t{
-        .len = value.length(),
-        .bytes = (void *) value.data()
-      };
+      mProperties.correlation_id = amqp_string_view_bytes(value);
 
       return *this;
     }
@@ -1381,8 +1312,8 @@ namespace jrabbit {
     }
 
   private:
-    inline static constexpr auto StaticParams = Params{};
-    inline static constexpr auto StaticRoutingKey = RoutingKey{};
+    inline static constexpr auto const StaticParams = Params{};
+    inline static constexpr auto const StaticRoutingKey = RoutingKey{};
 
     Context &mContext;
     amqp_connection_state_t mState{};
@@ -1399,15 +1330,6 @@ namespace jrabbit {
       if (auto result = amqp_error(amqp_get_rpc_reply(mState)); result) {
         throw std::runtime_error{result.value()};
       }
-    }
-
-    [[nodiscard]] static amqp_bytes_t amqp_string_view_bytes(std::string_view value) {
-      amqp_bytes_t result;
-
-      result.len = value.size();
-      result.bytes = (void *)value.data();
-
-      return result;
     }
 
     [[nodiscard]] std::optional<std::unique_ptr<Envelope> > consume(std::chrono::milliseconds timeout = {}) const {
